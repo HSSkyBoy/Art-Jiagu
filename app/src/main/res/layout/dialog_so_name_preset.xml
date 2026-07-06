@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="500dp"
+    android:background="@drawable/bg_log"
+    android:orientation="vertical"
+    android:padding="18dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择预设so名称"
+        android:textColor="#1F2937"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp">
+
+        <RadioGroup
+            android:id="@+id/rgSoNamePreset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btnConfirmSoNamePreset"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_button"
+        android:text="确定"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp" />
+
+</LinearLayout>
