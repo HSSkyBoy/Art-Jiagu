@@ -34,17 +34,10 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.Settings;
-import android.view.View;
-import android.widget.Button;
-import android.widget.ScrollView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.EdgeToEdge;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
@@ -82,14 +75,11 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 public class MainActivity extends ComponentActivity {
-    private Button btnSelectApk;
-    private TextView tvLog;
-    private ScrollView logScrollView;
+    private NeoArtUiController uiController;
     private static final int REQ_SELECT_APK = 1001;
     private static final String TEMP_DIR_NAME = "ArkJiagu";
     private boolean isPermissionDialogShowing = false;
     private boolean hasInitMain = false;
-    private android.widget.ImageButton btnSettings;
     private static final String SP_SETTINGS = "ark_settings";
     private static final String KEY_SO_NAME = "so_name";
     private static final String KEY_SAVE_PATH = "save_path";
@@ -127,7 +117,11 @@ public class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main);
+        uiController = NeoArtUi.install(
+                this,
+                this::openApkSelector,
+                this::showSettingsDialog
+        );
 
 
         /*new Thread(() -> {
@@ -164,8 +158,6 @@ public class MainActivity extends ComponentActivity {
 
 
 
-
-        initWindowInsets();
 
         checkPermissionOrShowDialog();
         SO_NAME_PRESETS = loadSoNamePresets();
@@ -262,28 +254,6 @@ public class MainActivity extends ComponentActivity {
         return list.toArray(new SoNamePreset[0]);
     }
 
-    private void initWindowInsets() {
-        View main = findViewById(R.id.main);
-
-        int left = main.getPaddingLeft();
-        int top = main.getPaddingTop();
-        int right = main.getPaddingRight();
-        int bottom = main.getPaddingBottom();
-
-        ViewCompat.setOnApplyWindowInsetsListener(main, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-
-            v.setPadding(
-                    left + systemBars.left,
-                    top + systemBars.top,
-                    right + systemBars.right,
-                    bottom + systemBars.bottom
-            );
-
-            return insets;
-        });
-    }
-
     private String getValidSoNameFromSettings() {
         try {
             ArkSettings settings = readArkSettings();
@@ -312,15 +282,8 @@ public class MainActivity extends ComponentActivity {
         File workDir = getWorkDir();
         cleanWorkDirOnStart(workDir);
 
-        btnSelectApk = findViewById(R.id.btnSelectApk);
-        tvLog = findViewById(R.id.tvLog);
-        logScrollView = findViewById(R.id.logScrollView);
-        btnSettings = findViewById(R.id.btnSettings);
         appendLog("加固器初始化完成");
         appendLog("等待选择 APK 文件");
-
-        btnSelectApk.setOnClickListener(v -> openApkSelector());
-        btnSettings.setOnClickListener(v -> showSettingsDialog());
     }
     private void cleanWorkDirOnStart(File workDir) {
         if (workDir == null || !workDir.exists()) {
@@ -811,15 +774,10 @@ public class MainActivity extends ComponentActivity {
         }
     }
     private void appendLog(String text) {
-        if (tvLog == null) {
+        if (uiController == null) {
             return;
         }
-
-        tvLog.append(text + "\n");
-
-        if (logScrollView != null) {
-            logScrollView.post(() -> logScrollView.fullScroll(View.FOCUS_DOWN));
-        }
+        uiController.appendLog(text);
     }
 
     /**
@@ -1224,7 +1182,7 @@ public class MainActivity extends ComponentActivity {
     }
 
     private void handleSelectedApk(Uri uri) {
-        btnSelectApk.setEnabled(false);
+        uiController.setSelectEnabled(false);
 
         new Thread(() -> {
             File workDir = getWorkDir();
@@ -1320,7 +1278,7 @@ public class MainActivity extends ComponentActivity {
                 appendLogOnUi("处理失败：" + e.getMessage());
             } finally {
                 cleanTempFiles(workDir);
-                runOnUiThread(() -> btnSelectApk.setEnabled(true));
+                runOnUiThread(() -> uiController.setSelectEnabled(true));
             }
         }).start();
     }

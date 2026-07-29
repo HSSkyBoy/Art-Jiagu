@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -58,6 +59,9 @@ android {
             useLegacyPackaging true
         }
     }
+    buildFeatures {
+        compose true
+    }
 }
 
 configurations.configureEach {
@@ -68,7 +72,12 @@ configurations.configureEach {
 dependencies {
     implementation fileTree(dir:'libs',include:['*.jar'])
     implementation 'com.android.tools.smali:smali-dexlib2:3.0.9'
-    implementation "androidx.activity:activity:1.9.0"
+    implementation "androidx.activity:activity-compose:1.13.0"
+    implementation platform("androidx.compose:compose-bom:2026.05.00")
+    implementation "androidx.compose.foundation:foundation"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+    implementation "io.github.suqi8.coui.kmp:coui-ui:1.0.0"
     implementation 'com.github.TimScriptov:apksigner:1.2.0'
     implementation 'org.bouncycastle:bcprov-jdk15to18:1.78.1'
     testImplementation libs.junit
