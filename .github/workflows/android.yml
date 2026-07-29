@@ -33,6 +33,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
       - name: Install Android build tools
         run: |
           sdkmanager \
