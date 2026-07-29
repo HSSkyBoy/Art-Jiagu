@@ -171,6 +171,56 @@
 
             </LinearLayout>
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="360 伪加固识别特征"
+                android:textColor="#374151"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="仅添加 MT 管理器等工具的识别特征，不提供真实 360 加固保护。启用后壳类名将使用 com.stub.StubApp。"
+                android:textColor="#6B7280"
+                android:textSize="12sp" />
+
+            <RadioGroup
+                android:id="@+id/rgFake360Type"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/rbFake360Off"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="关闭" />
+
+                <RadioButton
+                    android:id="@+id/rbFake360Normal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="普通（assets/libjiagu.so）" />
+
+                <RadioButton
+                    android:id="@+id/rbFake360Paid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="付费（assets/libjaigu_mips.a）" />
+
+                <RadioButton
+                    android:id="@+id/rbFake360Enterprise"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="企业（assets/libjaigu_vip.so）" />
+            </RadioGroup>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

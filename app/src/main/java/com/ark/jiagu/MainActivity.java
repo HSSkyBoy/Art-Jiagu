@@ -92,6 +92,12 @@ public class MainActivity extends ComponentActivity {
     private static final String KEY_JKS_KEY_PASS = "jks_key_pass";
     private static final String KEY_STUB_CLASS_NAME = "stub_class_name";
     private static final String DEFAULT_STUB_CLASS_NAME = "com.ark.safe.StubApp";
+    private static final String KEY_FAKE_360_TYPE = "fake_360_type";
+    private static final int FAKE_360_OFF = 0;
+    private static final int FAKE_360_NORMAL = 1;
+    private static final int FAKE_360_PAID = 2;
+    private static final int FAKE_360_ENTERPRISE = 3;
+    private static final String FAKE_360_STUB_CLASS_NAME = "com.stub.StubApp";
     private static final int REQ_STORAGE_PERMISSION = 10086;
 
 
@@ -297,6 +303,7 @@ public class MainActivity extends ComponentActivity {
         String stubClassName;
         String savePath;
         boolean autoSign;
+        int fake360Type;
 
         boolean useCustomJks;
         String jksPath;
@@ -309,6 +316,7 @@ public class MainActivity extends ComponentActivity {
                 String stubClassName,
                 String savePath,
                 boolean autoSign,
+                int fake360Type,
                 boolean useCustomJks,
                 String jksPath,
                 String jksStorePass,
@@ -319,6 +327,7 @@ public class MainActivity extends ComponentActivity {
             this.stubClassName = stubClassName;
             this.savePath = savePath;
             this.autoSign = autoSign;
+            this.fake360Type = fake360Type;
             this.useCustomJks = useCustomJks;
             this.jksPath = jksPath;
             this.jksStorePass = jksStorePass;
@@ -335,6 +344,10 @@ public class MainActivity extends ComponentActivity {
         String stubClassName = sp.getString(KEY_STUB_CLASS_NAME, DEFAULT_STUB_CLASS_NAME);
         String savePath = sp.getString(KEY_SAVE_PATH, defaultSavePath);
         boolean autoSign = sp.getBoolean(KEY_AUTO_SIGN, false);
+        int fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF);
+        if (fake360Type < FAKE_360_OFF || fake360Type > FAKE_360_ENTERPRISE) {
+            fake360Type = FAKE_360_OFF;
+        }
 
         boolean useCustomJks = sp.getBoolean(KEY_USE_CUSTOM_JKS, false);
         String jksPath = sp.getString(KEY_JKS_PATH, "");
@@ -359,6 +372,7 @@ public class MainActivity extends ComponentActivity {
                 stubClassName,
                 savePath,
                 autoSign,
+                fake360Type,
                 useCustomJks,
                 jksPath == null ? "" : jksPath,
                 jksStorePass == null ? "" : jksStorePass,
@@ -371,6 +385,7 @@ public class MainActivity extends ComponentActivity {
             String stubClassName,
             String savePath,
             boolean autoSign,
+            int fake360Type,
             boolean useCustomJks,
             String jksPath,
             String jksStorePass,
@@ -384,6 +399,7 @@ public class MainActivity extends ComponentActivity {
                 .putString(KEY_STUB_CLASS_NAME, stubClassName)
                 .putString(KEY_SAVE_PATH, savePath)
                 .putBoolean(KEY_AUTO_SIGN, autoSign)
+                .putInt(KEY_FAKE_360_TYPE, fake360Type)
                 .putBoolean(KEY_USE_CUSTOM_JKS, useCustomJks)
                 .putString(KEY_JKS_PATH, jksPath)
                 .putString(KEY_JKS_STORE_PASS, jksStorePass)
@@ -547,6 +563,7 @@ public class MainActivity extends ComponentActivity {
         android.widget.EditText etStubClassName = dialogView.findViewById(R.id.etStubClassName);
         android.widget.ImageButton btnClearStubClassName = dialogView.findViewById(R.id.btnClearStubClassName);
         android.widget.ImageButton btnClearSavePath = dialogView.findViewById(R.id.btnClearSavePath);
+        android.widget.RadioGroup rgFake360Type = dialogView.findViewById(R.id.rgFake360Type);
 
 
         ArkSettings settings = readArkSettings();
@@ -554,6 +571,20 @@ public class MainActivity extends ComponentActivity {
         etSoName.setText(settings.soName);
         etSavePath.setText(settings.savePath);
         swAutoSign.setChecked(settings.autoSign);
+        switch (settings.fake360Type) {
+            case FAKE_360_NORMAL:
+                rgFake360Type.check(R.id.rbFake360Normal);
+                break;
+            case FAKE_360_PAID:
+                rgFake360Type.check(R.id.rbFake360Paid);
+                break;
+            case FAKE_360_ENTERPRISE:
+                rgFake360Type.check(R.id.rbFake360Enterprise);
+                break;
+            default:
+                rgFake360Type.check(R.id.rbFake360Off);
+                break;
+        }
 
         swUseCustomJks.setChecked(settings.useCustomJks);
         etJksPath.setText(settings.jksPath);
@@ -594,6 +625,10 @@ public class MainActivity extends ComponentActivity {
             String stubClassName = etStubClassName.getText().toString().trim();
             String savePath = etSavePath.getText().toString().trim();
             boolean autoSign = swAutoSign.isChecked();
+            int fake360Type = getSelectedFake360Type(rgFake360Type);
+            if (fake360Type != FAKE_360_OFF) {
+                stubClassName = FAKE_360_STUB_CLASS_NAME;
+            }
 
             boolean useCustomJks = swUseCustomJks.isChecked();
             String jksPath = etJksPath.getText().toString().trim();
@@ -636,6 +671,7 @@ public class MainActivity extends ComponentActivity {
                     stubClassName,
                     savePath,
                     autoSign,
+                    fake360Type,
                     useCustomJks,
                     jksPath,
                     jksStorePass,
@@ -651,6 +687,46 @@ public class MainActivity extends ComponentActivity {
 
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+    }
+
+    private int getSelectedFake360Type(android.widget.RadioGroup group) {
+        int checkedId = group.getCheckedRadioButtonId();
+        if (checkedId == R.id.rbFake360Normal) {
+            return FAKE_360_NORMAL;
+        }
+        if (checkedId == R.id.rbFake360Paid) {
+            return FAKE_360_PAID;
+        }
+        if (checkedId == R.id.rbFake360Enterprise) {
+            return FAKE_360_ENTERPRISE;
+        }
+        return FAKE_360_OFF;
+    }
+
+    private String getFake360AssetName(int type) {
+        switch (type) {
+            case FAKE_360_NORMAL:
+                return "assets/libjiagu.so";
+            case FAKE_360_PAID:
+                return "assets/libjaigu_mips.a";
+            case FAKE_360_ENTERPRISE:
+                return "assets/libjaigu_vip.so";
+            default:
+                return null;
+        }
+    }
+
+    private String getFake360TypeLabel(int type) {
+        switch (type) {
+            case FAKE_360_NORMAL:
+                return "普通";
+            case FAKE_360_PAID:
+                return "付费";
+            case FAKE_360_ENTERPRISE:
+                return "企业";
+            default:
+                return "关闭";
         }
     }
     private static class SoNamePreset {
@@ -1624,6 +1700,10 @@ public class MainActivity extends ComponentActivity {
         }
 
         Set<String> skipNames = new HashSet<>();
+        ArkSettings repackSettings = readArkSettings();
+        String fake360AssetName = repackSettings == null
+                ? null
+                : getFake360AssetName(repackSettings.fake360Type);
 
         ZipFile checkZip = new ZipFile(apkFile);
         try {
@@ -1642,6 +1722,9 @@ public class MainActivity extends ComponentActivity {
         }
 
         skipNames.add("AndroidManifest.xml");
+        if (fake360AssetName != null) {
+            skipNames.add(fake360AssetName);
+        }
 
         if (libDir.exists() && libDir.isDirectory()) {
             collectLibSkipNames(libDir, libDir, skipNames);
@@ -1685,6 +1768,23 @@ public class MainActivity extends ComponentActivity {
 
             if (libDir.exists() && libDir.isDirectory()) {
                 addLibDirToZipStream(zos, libDir, libDir);
+            }
+
+            if (fake360AssetName != null) {
+                String marker = "ArkJiagu fake 360 marker for tool identification only; "
+                        + "not genuine 360 protection.\n";
+                addZipEntryStream(
+                        zos,
+                        fake360AssetName,
+                        new java.io.ByteArrayInputStream(
+                                marker.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                        ),
+                        null
+                );
+                appendLogOnUi(
+                        "已添加 360 " + getFake360TypeLabel(repackSettings.fake360Type)
+                                + "识别特征：" + fake360AssetName
+                );
             }
 
             zos.finish();

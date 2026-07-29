@@ -24,6 +24,15 @@ Debug APK 输出到 `app/build/outputs/apk/debug/app-debug.apk`，未签名 Rele
 
 这是一个 APK Dex 加固工具。
 
+### 360 识别特征（娱乐功能）
+
+设置页可选择关闭、普通、付费或企业 360 识别特征。启用后，工具会使用
+`com.stub.StubApp` 作为壳入口，并在 APK 的 `assets/` 中写入对应的
+`libjiagu.so`、`libjaigu_mips.a` 或 `libjaigu_vip.so` 标记文件。
+
+该功能只用于 MT 管理器等工具的特征识别，不包含 360 加固逻辑，也不会带来
+额外安全保护。标记文件内部同样注明其为伪特征，请勿把识别结果当作真实加固。
+
 整个加固工具仅包含一个 `MainActivity`，所有核心逻辑均集中在该类中实现。
 
 项目编译后会生成两个动态库：
