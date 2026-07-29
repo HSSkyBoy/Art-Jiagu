@@ -1,5 +1,25 @@
 # ArkDex 加固工具说明
 
+[![Android CI](https://github.com/HSSkyBoy/Art-Jiagu/actions/workflows/android.yml/badge.svg)](https://github.com/HSSkyBoy/Art-Jiagu/actions/workflows/android.yml)
+
+## 构建
+
+项目使用 JDK 21、Android SDK 36、NDK 27.0.12077973 和 CMake 3.22.1。
+
+Windows：
+
+```powershell
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease
+```
+
+Linux/macOS：
+
+```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+```
+
+Debug APK 输出到 `app/build/outputs/apk/debug/app-debug.apk`，未签名 Release APK 输出到 `app/build/outputs/apk/release/app-release-unsigned.apk`。GitHub Actions 会在推送到 `main`、Pull Request 和手动触发时执行同一套检查，验证四个 ABI 的原生库，并上传 APK 与构建报告。正式发布时应使用自己的私钥在可信环境中签名，不能把密钥或密码提交到仓库。
+
 ## 项目简介
 
 这是一个 APK Dex 加固工具。
