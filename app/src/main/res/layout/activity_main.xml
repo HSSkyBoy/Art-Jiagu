@@ -19,7 +19,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="By:菜鸟八哥 QQ:2380494437\n提供了简单的签名校验防御以及lsp注入防御\n另外，圈内有一款叫易固的加固工具是诈骗软件，谨防上当受骗"
+        android:text="By: HSSkyBoy \n用于合法的软件保护与安全研究"
         android:textColor="#6B7280"
         android:textSize="13sp" />
 
