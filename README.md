@@ -4,7 +4,8 @@
 
 ## 构建
 
-项目使用 JDK 21、Android SDK 36、NDK 27.0.12077973 和 CMake 3.22.1。
+项目使用 JDK 21、Android SDK 37、AGP 9.3.1、Gradle 9.5.1、
+NDK 29.0.13846066 和 CMake 3.22.1。
 
 Windows：
 

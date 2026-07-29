@@ -39,9 +39,9 @@ jobs:
       - name: Install Android build tools
         run: |
           sdkmanager \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "ndk;27.0.12077973" \
+            "platforms;android-36.1" \
+            "build-tools;36.1.0" \
+            "ndk;29.0.13846066" \
             "cmake;3.22.1"
 
       - name: Grant execute permission to Gradle wrapper
