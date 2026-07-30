@@ -129,8 +129,9 @@ public class MainActivity extends ComponentActivity {
         uiController = NeoArtUi.install(
                 this,
                 this::openApkSelector,
-                this::showSettingsDialog
+                this::openSettingsFlow
         );
+        uiController.setOnSaveSettingsHandler(this::handleSaveSettingsFromCompose);
 
 
         /*new Thread(() -> {
@@ -552,157 +553,70 @@ public class MainActivity extends ComponentActivity {
         return true;
     }
 
-    private void showSettingsDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_settings, null);
-
-        android.widget.EditText etSoName = dialogView.findViewById(R.id.etSoName);
-        android.widget.EditText etSavePath = dialogView.findViewById(R.id.etSavePath);
-        android.widget.Switch swAutoSign = dialogView.findViewById(R.id.swAutoSign);
-
-        android.widget.Switch swUseCustomJks = dialogView.findViewById(R.id.swUseCustomJks);
-        android.widget.LinearLayout llCustomJksForm = dialogView.findViewById(R.id.llCustomJksForm);
-        android.widget.EditText etJksPath = dialogView.findViewById(R.id.etJksPath);
-        android.widget.EditText etJksStorePass = dialogView.findViewById(R.id.etJksStorePass);
-        android.widget.EditText etJksAlias = dialogView.findViewById(R.id.etJksAlias);
-        android.widget.EditText etJksKeyPass = dialogView.findViewById(R.id.etJksKeyPass);
-        android.widget.ImageButton btnSoNamePreset = dialogView.findViewById(R.id.btnSoNamePreset);
-        Button btnSaveSettings = dialogView.findViewById(R.id.btnSaveSettings);
-        android.widget.EditText etStubClassName = dialogView.findViewById(R.id.etStubClassName);
-        android.widget.ImageButton btnClearStubClassName = dialogView.findViewById(R.id.btnClearStubClassName);
-        android.widget.ImageButton btnClearSavePath = dialogView.findViewById(R.id.btnClearSavePath);
-        android.widget.RadioGroup rgFake360Type = dialogView.findViewById(R.id.rgFake360Type);
-
-
+    private void openSettingsFlow() {
         ArkSettings settings = readArkSettings();
-        etStubClassName.setText(settings.stubClassName);
-        etSoName.setText(settings.soName);
-        etSavePath.setText(settings.savePath);
-        swAutoSign.setChecked(settings.autoSign);
-        switch (settings.fake360Type) {
-            case FAKE_360_NORMAL:
-                rgFake360Type.check(R.id.rbFake360Normal);
-                break;
-            case FAKE_360_PAID:
-                rgFake360Type.check(R.id.rbFake360Paid);
-                break;
-            case FAKE_360_ENTERPRISE:
-                rgFake360Type.check(R.id.rbFake360Enterprise);
-                break;
-            default:
-                rgFake360Type.check(R.id.rbFake360Off);
-                break;
+        ArkSettingsData data = new ArkSettingsData(
+                settings.soName,
+                settings.stubClassName,
+                settings.savePath,
+                settings.autoSign,
+                settings.fake360Type,
+                settings.useCustomJks,
+                settings.jksPath,
+                settings.jksStorePass,
+                settings.jksAlias,
+                settings.jksKeyPass
+        );
+        uiController.openSettings(data);
+    }
+
+    private String handleSaveSettingsFromCompose(ArkSettingsData data) {
+        String soName = data.getSoName().trim();
+        String stubClassName = data.getStubClassName().trim();
+        String savePath = data.getSavePath().trim();
+        boolean autoSign = data.getAutoSign();
+        int fake360Type = data.getFake360Type();
+        if (fake360Type != FAKE_360_OFF) {
+            stubClassName = FAKE_360_STUB_CLASS_NAME;
         }
 
-        swUseCustomJks.setChecked(settings.useCustomJks);
-        etJksPath.setText(settings.jksPath);
-        etJksStorePass.setText(settings.jksStorePass);
-        etJksAlias.setText(settings.jksAlias);
-        etJksKeyPass.setText(settings.jksKeyPass);
+        boolean useCustomJks = data.getUseCustomJks();
+        String jksPath = data.getJksPath().trim();
+        String jksStorePass = data.getJksStorePass();
+        String jksAlias = data.getJksAlias().trim();
+        String jksKeyPass = data.getJksKeyPass();
 
-        llCustomJksForm.setVisibility(settings.useCustomJks ? View.VISIBLE : View.GONE);
-
-        swUseCustomJks.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            llCustomJksForm.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-        });
-
-        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
-                .setView(dialogView)
-                .setCancelable(true)
-                .create();
-        btnSoNamePreset.setOnClickListener(v -> showSoNamePresetDialog(etSoName));
-        btnClearStubClassName.setOnClickListener(v -> {
-            new android.app.AlertDialog.Builder(this)
-                    .setTitle("确认清空")
-                    .setMessage("是否清空自定义壳类名？")
-                    .setPositiveButton("确定", (d, w) -> etStubClassName.setText(""))
-                    .setNegativeButton("取消", null)
-                    .show();
-        });
-
-        btnClearSavePath.setOnClickListener(v -> {
-            new android.app.AlertDialog.Builder(this)
-                    .setTitle("确认清空")
-                    .setMessage("是否清空文件保存路径？")
-                    .setPositiveButton("确定", (d, w) -> etSavePath.setText(""))
-                    .setNegativeButton("取消", null)
-                    .show();
-        });
-        btnSaveSettings.setOnClickListener(v -> {
-            String soName = etSoName.getText().toString().trim();
-            String stubClassName = etStubClassName.getText().toString().trim();
-            String savePath = etSavePath.getText().toString().trim();
-            boolean autoSign = swAutoSign.isChecked();
-            int fake360Type = getSelectedFake360Type(rgFake360Type);
-            if (fake360Type != FAKE_360_OFF) {
-                stubClassName = FAKE_360_STUB_CLASS_NAME;
-            }
-
-            boolean useCustomJks = swUseCustomJks.isChecked();
-            String jksPath = etJksPath.getText().toString().trim();
-            String jksStorePass = etJksStorePass.getText().toString();
-            String jksAlias = etJksAlias.getText().toString().trim();
-            String jksKeyPass = etJksKeyPass.getText().toString();
-
-            if (!isValidSoName(soName)) {
-                Toast.makeText(this, "so名称不合法，只能使用字母、数字、下划线，不要带lib和.so", Toast.LENGTH_LONG).show();
-                return;
-            }
-            if (!isValidStubClassName(stubClassName)) {
-                new android.app.AlertDialog.Builder(this)
-                        .setTitle("类名格式错误")
-                        .setMessage(
-                                "自定义壳类名不合法\n\n" +
-                                        "正确示例：\n" +
-                                        "top.nkbe.safe.StubApp\n\n" +
-                                        "规则：\n" +
-                                        "1、至少包含包名和类名\n" +
-                                        "2、每段不能以数字开头\n" +
-                                        "3、只能包含字母、数字、下划线和$\n" +
-                                        "4、不能包含空段"
-                        )
-                        .setPositiveButton("确定", null)
-                        .show();
-                return;
-            }
-            if (ShellClassNamePolicy.containsArt(stubClassName)) {
-                Toast.makeText(
-                        this,
-                        "壳类名不能包含 art，请改用 nkbe 或其他名称",
-                        Toast.LENGTH_LONG
-                ).show();
-                return;
-            }
-            if (!isValidSavePath(savePath)) {
-                Toast.makeText(this, "文件保存路径无效或不可写", Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) {
-                return;
-            }
-
-            saveArkSettings(
-                    soName,
-                    stubClassName,
-                    savePath,
-                    autoSign,
-                    fake360Type,
-                    useCustomJks,
-                    jksPath,
-                    jksStorePass,
-                    jksAlias,
-                    jksKeyPass
-            );
-
-            Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show();
-            dialog.dismiss();
-        });
-
-        dialog.show();
-
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        if (!isValidSoName(soName)) {
+            return "so名称不合法，只能使用字母、数字、下划线，不要带lib和.so";
         }
+        if (!isValidStubClassName(stubClassName)) {
+            return "自定义壳类名不合法。需包含包名与类名（如 top.nkbe.safe.StubApp），不能以数字开头。";
+        }
+        if (ShellClassNamePolicy.containsArt(stubClassName)) {
+            return "壳类名不能包含 art，请改用 nkbe 或其他名称";
+        }
+        if (!isValidSavePath(savePath)) {
+            return "文件保存路径无效或不可写";
+        }
+        if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) {
+            return "JKS 证书配置无效或未填完整";
+        }
+
+        saveArkSettings(
+                soName,
+                stubClassName,
+                savePath,
+                autoSign,
+                fake360Type,
+                useCustomJks,
+                jksPath,
+                jksStorePass,
+                jksAlias,
+                jksKeyPass
+        );
+
+        Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show();
+        return null;
     }
 
     private int getSelectedFake360Type(android.widget.RadioGroup group) {
