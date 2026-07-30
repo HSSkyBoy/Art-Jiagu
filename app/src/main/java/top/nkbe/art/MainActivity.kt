@@ -22,6 +22,10 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction10x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11n
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21s
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22s
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction23x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
@@ -514,30 +518,38 @@ class MainActivity : ComponentActivity() {
 
         val dexPool = DexPool(Opcodes.getDefault())
 
+        // ── Obfuscated <clinit> ──
+        // Junk arithmetic acts as opaque predicate: (13*7)%13 = 0, always evaluates to 0
+        // but appears as a dynamic condition to naive decompilers.
+        val clinitInstructions = mutableListOf(
+            // Junk code: compute value that is always 0
+            ImmutableInstruction21s(Opcode.CONST_16, 2, 13),       // v2 = 13
+            ImmutableInstruction22s(Opcode.MUL_INT_LIT8, 2, 2, 7), // v2 = 13 * 7 = 91
+            ImmutableInstruction22s(Opcode.REM_INT_LIT8, 2, 2, 13),// v2 = 91 % 13 = 0 (always)
+            ImmutableInstruction11n(Opcode.CONST_4, 3, 0x0),       // v3 = 0 (dead reg fill)
+            // Real code
+            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("ark")),
+            ImmutableInstruction21c(Opcode.CONST_STRING, 1, ImmutableStringReference(customStubClassName)),
+            ImmutableInstruction35c(
+                Opcode.INVOKE_STATIC, 2, 0, 1, 0, 0, 0,
+                ImmutableMethodReference("Ljava/lang/System;", "setProperty",
+                    listOf("Ljava/lang/String;", "Ljava/lang/String;"), "Ljava/lang/String;"),
+            ),
+            ImmutableInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0),
+            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference(validSoName)),
+            ImmutableInstruction35c(
+                Opcode.INVOKE_STATIC, 1, 0, 0, 0, 0, 0,
+                ImmutableMethodReference("Ljava/lang/System;", "loadLibrary",
+                    listOf("Ljava/lang/String;"), "V"),
+            ),
+            ImmutableInstruction10x(Opcode.RETURN_VOID),
+        )
+
         val clinitMethod = ImmutableMethod(
             stubClass, "<clinit>", emptyList(), "V",
             AccessFlags.STATIC.value or AccessFlags.CONSTRUCTOR.value,
             emptySet(), null,
-            ImmutableMethodImplementation(
-                2,
-                listOf(
-                    ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("ark")),
-                    ImmutableInstruction21c(Opcode.CONST_STRING, 1, ImmutableStringReference(customStubClassName)),
-                    ImmutableInstruction35c(
-                        Opcode.INVOKE_STATIC, 2, 0, 1, 0, 0, 0,
-                        ImmutableMethodReference("Ljava/lang/System;", "setProperty",
-                            listOf("Ljava/lang/String;", "Ljava/lang/String;"), "Ljava/lang/String;"),
-                    ),
-                    ImmutableInstruction11x(Opcode.MOVE_RESULT_OBJECT, 0),
-                    ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference(validSoName)),
-                    ImmutableInstruction35c(
-                        Opcode.INVOKE_STATIC, 1, 0, 0, 0, 0, 0,
-                        ImmutableMethodReference("Ljava/lang/System;", "loadLibrary",
-                            listOf("Ljava/lang/String;"), "V"),
-                    ),
-                    ImmutableInstruction10x(Opcode.RETURN_VOID),
-                ), emptyList(), emptyList(),
-            ),
+            ImmutableMethodImplementation(4, clinitInstructions, emptyList(), emptyList()),
         )
 
         val initMethod = ImmutableMethod(
@@ -556,6 +568,25 @@ class MainActivity : ComponentActivity() {
             ),
         )
 
+        // ── Fake method: never called, adds noise to class ──
+        val fakeMethod = ImmutableMethod(
+            stubClass, "a",
+            listOf(ImmutableMethodParameter("I", emptySet(), null)), "I",
+            AccessFlags.PRIVATE.value or AccessFlags.STATIC.value,
+            emptySet(), null,
+            ImmutableMethodImplementation(
+                3,
+                listOf(
+                    ImmutableInstruction22s(Opcode.MUL_INT_LIT8, 1, 0, 7),      // v1 = v0 * 7
+                    ImmutableInstruction22s(Opcode.ADD_INT_LIT8, 1, 1, 13),     // v1 = v1 + 13
+                    ImmutableInstruction22s(Opcode.REM_INT_LIT8, 1, 1, 11),     // v1 = v1 % 11
+                    ImmutableInstruction11n(Opcode.CONST_4, 0, 0x3),            // v0 = 3
+                    ImmutableInstruction23x(Opcode.ADD_INT, 0, 1, 0),           // v0 = v1 + 3
+                    ImmutableInstruction10x(Opcode.RETURN),                     // return v0
+                ), emptyList(), emptyList(),
+            ),
+        )
+
         val attachMethod = ImmutableMethod(
             stubClass, "attachBaseContext",
             listOf(ImmutableMethodParameter(contextClass, emptySet(), null)), "V",
@@ -566,7 +597,7 @@ class MainActivity : ComponentActivity() {
         val classDef = ImmutableClassDef(
             stubClass, AccessFlags.PUBLIC.value, applicationClass,
             emptyList(), "StubApp.java", emptySet(), emptyList(),
-            listOf(clinitMethod, initMethod, attachMethod),
+            listOf(clinitMethod, initMethod, fakeMethod, attachMethod),
         )
 
         dexPool.internClass(classDef)
