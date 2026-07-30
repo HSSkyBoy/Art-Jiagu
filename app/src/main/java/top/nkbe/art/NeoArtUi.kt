@@ -1,6 +1,7 @@
 package top.nkbe.art
 
 import androidx.activity.ComponentActivity
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -34,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import io.github.suqi8.coui.kmp.basic.ButtonDefaults
 import io.github.suqi8.coui.kmp.basic.Card
 import io.github.suqi8.coui.kmp.basic.Text
@@ -92,10 +95,23 @@ private fun NeoArtApp(
     onSelectApk: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val themeController = remember {
+    val context = LocalContext.current
+    val keyColor = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                Color(ContextCompat.getColor(context, android.R.color.system_accent1_500))
+            } catch (_: Exception) {
+                Color(0xFF4B70F5)
+            }
+        } else {
+            Color(0xFF4B70F5)
+        }
+    }
+
+    val themeController = remember(keyColor) {
         ThemeController(
             colorSchemeMode = ColorSchemeMode.MonetSystem,
-            keyColor = Color(0xFF4B70F5),
+            keyColor = keyColor,
         )
     }
 
