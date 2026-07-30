@@ -129,7 +129,7 @@ public class MainActivity extends ComponentActivity {
         uiController = NeoArtUi.install(
                 this,
                 this::openApkSelector,
-                this::openSettingsFlow
+                this::loadSettingsFlow
         );
         uiController.setOnSaveSettingsHandler(this::handleSaveSettingsFromCompose);
 
@@ -553,7 +553,7 @@ public class MainActivity extends ComponentActivity {
         return true;
     }
 
-    private void openSettingsFlow() {
+    private void loadSettingsFlow() {
         ArkSettings settings = readArkSettings();
         ArkSettingsData data = new ArkSettingsData(
                 settings.soName,
@@ -567,7 +567,7 @@ public class MainActivity extends ComponentActivity {
                 settings.jksAlias,
                 settings.jksKeyPass
         );
-        uiController.openSettings(data);
+        uiController.loadSettings(data);
     }
 
     private String handleSaveSettingsFromCompose(ArkSettingsData data) {
