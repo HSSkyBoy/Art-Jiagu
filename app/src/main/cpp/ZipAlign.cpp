@@ -6,7 +6,7 @@ using namespace android;
 
 extern "C"
 JNIEXPORT jboolean
-JNICALL Java_com_ark_jiagu_ZipAlign_doZipAlign
+JNICALL Java_top_nkbe_art_ZipAlign_doZipAlign
 (JNIEnv *env, jclass clazz, jstring inZipFile, jstring outZipFile, jint alignment, jboolean pageAlignSharedLibs, jboolean force) {
     const char *inFileName = env->GetStringUTFChars(inZipFile, nullptr);
     if (!inFileName) {
@@ -25,7 +25,7 @@ JNICALL Java_com_ark_jiagu_ZipAlign_doZipAlign
 
 extern "C"
 JNIEXPORT jboolean
-JNICALL Java_com_ark_jiagu_ZipAlign_isZipAligned
+JNICALL Java_top_nkbe_art_ZipAlign_isZipAligned
 (JNIEnv *env, jclass clazz, jstring zipFile, jint alignment, jboolean pageAlignSharedLibs) {
     const char *fileName = env->GetStringUTFChars(zipFile, nullptr);
     if(!fileName) {

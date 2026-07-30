@@ -20,7 +20,7 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
--keep class com.ark.jiagu.MainActivity {
+-keep class top.nkbe.art.MainActivity {
     native <methods>;
 }
 -keep class com.ark.** { *; }

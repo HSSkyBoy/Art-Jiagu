@@ -818,7 +818,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_ERR;
     }
 
-    jclass clazz = env->FindClass("com/ark/jiagu/MainActivity");
+    jclass clazz = env->FindClass("top/nkbe/art/MainActivity");
     if (clazz == nullptr) {
         return JNI_ERR;
     }

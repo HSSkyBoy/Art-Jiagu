@@ -1,4 +1,4 @@
-package com.ark.jiagu
+package top.nkbe.art
 
 import android.content.Context
 import android.util.Base64
@@ -10,13 +10,13 @@ import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
 
 object JksSha256Util {
-    private const val DEFAULT_KEYSTORE = "Ark.jks"
+    private const val DEFAULT_KEYSTORE = "npatch.key"
     private const val DEFAULT_PASSWORD = "123456"
-    private const val DEFAULT_ALIAS = "123456"
+    private const val DEFAULT_ALIAS = "key0"
     private val hex = "0123456789ABCDEF".toCharArray()
 
     @JvmStatic
-    fun getArkJksSha256(context: Context): String =
+    fun getNpatchKeySha256(context: Context): String =
         getJksSha256FromAssets(
             context = context,
             assetsName = DEFAULT_KEYSTORE,
@@ -24,6 +24,10 @@ object JksSha256Util {
             alias = DEFAULT_ALIAS,
             keyPassword = DEFAULT_PASSWORD,
         )
+
+    @JvmStatic
+    @Deprecated("Ark signature is deprecated, use getNpatchKeySha256 instead", ReplaceWith("getNpatchKeySha256(context)"))
+    fun getArkJksSha256(context: Context): String = getNpatchKeySha256(context)
 
     @JvmStatic
     fun getJksSha256FromAssets(

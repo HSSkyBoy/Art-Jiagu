@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace 'com.ark.jiagu'
+    namespace 'top.nkbe.art'
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId "com.ark.jiagu"
+        applicationId "top.nkbe.art"
         minSdk 26
         targetSdk 36
         versionCode 1
