@@ -1,177 +1,85 @@
-# ArkDex 加固工具说明
+# Neo Art 加固 (Neo Art Jiagu)
 
 [![Android CI](https://github.com/HSSkyBoy/Art-Jiagu/actions/workflows/android.yml/badge.svg)](https://github.com/HSSkyBoy/Art-Jiagu/actions/workflows/android.yml)
+[![Release](https://img.shields.io/github/v/release/HSSkyBoy/Art-Jiagu?color=blue)](https://github.com/HSSkyBoy/Art-Jiagu/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## 构建
+基于 Jetpack Compose 与 Native C++ 底层 Syscall 的 Android APK 深度 DEX 加固 protection 工具。
 
-项目使用 JDK 21、Android SDK 37、AGP 9.3.1、Gradle 9.5.1、
-NDK 29.0.13846066 和 CMake 3.22.1。
+---
 
-Windows：
+## 🌟 核心特性 (Key Features)
 
+### 1. 🛡️ Native C++ 直接 Syscall 防破簽 / 去簽名 (Anti-Signature-Killer)
+- 使用 C++ 底層 Linux 系統呼叫 `syscall(__NR_openat)` 與 `syscall(__NR_pread64)` 直接讀取物理硬碟上的 `/data/app/.../base.apk`。
+- 獨立解析 APK v2 (`0x7109871a`) 与 v3 (`0xf05368c0`) 簽名區塊 (`APK Sig Block 42`)，不依賴任何 Java `PackageManager` API。
+- **完全繞過 `L-JINBIN/ApkSignatureKillerEx` 等所有 Java / libc `open` Hook！**
+- 將提取出的證書 SHA-256 雜湊與殼 DEX 動態綁定解密，一旦被去簽名重簽名，殼 DEX 自動解密失敗並立即崩潰閃退 (Fail-Closed)。
+
+### 2. 🎨 液態玻璃 (Liquid Glassmorphism) 3 頁式全新 UI
+- 採用 **Jetpack Compose** 與 **[COUI KMP 模組庫](https://suqi8.github.io/coui/)** 打造。
+- 支援 **Android 12+ 莫奈 (Monet) 動態色彩** 擷取與深色/淺色模式切換。
+- **三頁式架構**：
+  - **⚡ 管理 (Management)**：APK 保護工作台、即時策略預覽、加固主按鈕。
+  - **⚙️ 設定 (Settings)**：全螢幕參數配置（預設關閉相容 NPatch 策略）、自訂 SO/殼類名、自訂 JKS。
+  - **📜 日誌 (Logs)**：全螢幕 Console 主控台，支援一鍵複製與清空。
+- **液態玻璃懸浮底欄 (Liquid Glassmorphism Navigation Bar)**：磨砂亞克力質感與平滑微動畫。
+
+### 3. 🧩 開源引擎模組化 (`JiaguEngine`)
+- 核心加固引擎完全解耦為獨立模組 `top.nkbe.art.engine.JiaguEngine`。
+- 可作為 **Git Submodule (子模組)** 直接引入至 **NPatch** 等修改工具中。
+- 詳細引入方法請參閱 [SUBMODULE_GUIDE.md](SUBMODULE_GUIDE.md)。
+
+---
+
+## 🚀 快速開始与构建 (Building)
+
+### 環境要求
+- **JDK**: 21
+- **Android SDK**: 37 (Target 36 / Min 26)
+- **AGP**: 9.3.1
+- **Gradle**: 9.5.1
+- **NDK**: 29.0.13846066
+- **CMake**: 3.22.1
+
+### Windows (PowerShell)
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-Linux/macOS：
-
+### Linux / macOS
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-Debug APK 输出到 `app/build/outputs/apk/debug/app-debug.apk`，未签名 Release APK 输出到 `app/build/outputs/apk/release/app-release-unsigned.apk`。GitHub Actions 会在推送到 `main`、Pull Request 和手动触发时执行同一套检查，验证四个 ABI 的原生库，并上传 APK 与构建报告。正式发布时应使用自己的私钥在可信环境中签名，不能把密钥或密码提交到仓库。
-
-## 项目简介
-
-这是一个 APK Dex 加固工具。
-
-### 360 识别特征（娱乐功能）
-
-设置页可选择关闭、普通、付费或企业 360 识别特征。启用后，工具会使用
-`com.stub.StubApp` 作为壳入口，并在 APK 的 `assets/` 中写入对应的
-`libjiagu.so`、`libjaigu_mips.a` 或 `libjaigu_vip.so` 标记文件。
-
-该功能只用于 MT 管理器等工具的特征识别，不包含 360 加固逻辑，也不会带来
-额外安全保护。标记文件内部同样注明其为伪特征，请勿把识别结果当作真实加固。
-
-整个加固工具仅包含一个 `MainActivity`，所有核心逻辑均集中在该类中实现。
-
-项目编译后会生成两个动态库：
-
-* `libArkTool.so`
-* `libArkStub.so`
-
-其中：
-
-### libArkTool.so
-
-用于实现加固过程中所需的各种加密、解密及辅助功能。
-
-### libArkStub.so
-
-用于实现壳程序的启动、环境检测以及 Dex 动态加载逻辑。
+- **Debug APK**: `app/build/outputs/apk/debug/app-debug.apk`
+- **Release APK**: `app/build/outputs/apk/release/app-release-unsigned.apk`
 
 ---
 
-# libArkStub.so 工作原理
-
-## 1. 动态注册入口方法
-
-在 `ArkStub.cpp` 中完成 JNI 方法动态注册。
-
-注册的目标类名并非固定写死，而是在壳 Dex 加载 So 时动态传入，因此可以适配不同的壳 Dex。
-
----
-
-## 2. 环境安全检测
-
-JNI 方法注册完成后，会进入 `ArkEnvGuard.cpp` 中执行环境检测逻辑。
-
-核心入口：
-
-```cpp
-ArkEnvGuard_CheckAndLoad_Impl()
-```
-
-当前已实现部分基础检测，例如：
-
-* Xposed 注入检测
-* LSPosed 注入检测
-* 常见 Hook 框架检测
-
-开发者可根据需要在此处增加更多安全检测逻辑，例如：
-
-* Root 检测
-* Frida 检测
-* Magisk 检测
-* 模拟器检测
-* 调试器检测
-* 内存篡改检测
-
-只有当所有检测全部通过后，才会继续执行 Dex 加载流程。
-
----
-
-## 3. Dex 解密与加载
-
-环境检测通过后，会进入 `ArkDexLoader.cpp` 中的：
-
-```cpp
-LoaderDEX()
-```
-
-进行 Dex 解密和动态加载。
-
-### Android 8.0 及以上
-
-采用系统提供的：
-
-```java
-InMemoryDexClassLoader
-```
-
-实现 Dex 不落地加载。
-
-解密后的 Dex 直接驻留在内存中，不会写入磁盘。
-
----
-
-### Android 8.0 以下
-
-采用：
-
-```java
-DexClassLoader
-```
-
-进行加载。
-
-由于系统限制，需要先将 Dex 临时写入磁盘再进行加载。
-
-这种方式存在一定安全风险，因此仅作为低版本系统兼容方案。
-
----
-
-# 加固流程
-
-整体加固流程如下：
+## 📂 專案架構 (Architecture)
 
 ```text
-解压 APK
-    ↓
-提取 AndroidManifest.xml 和 Dex
-    ↓
-使用 dexlib2 动态生成壳 Dex
-    ↓
-将原始 Dex 追加到壳 Dex 尾部
-    ↓
-替换 Application
-    ↓
-重新打包 APK
-    ↓
-重新签名
+Art-Jiagu/
+├── app/src/main/
+│   ├── cpp/                        # Native C++ 殼與 Syscall 防護引擎
+│   │   ├── ApkSignatureVerifier.cpp # 直接 Syscall APK v2/v3 簽名區塊解析器
+│   │   ├── ArkDexLoader.cpp         # 記憶體 DEX 加密解密與 InMemoryDexClassLoader
+│   │   ├── ArkEnvGuard.cpp          # 環境安全檢測 (Xposed / LSPosed / Hook 檢測)
+│   │   └── ArkStub.cpp              # JNI 動態註冊與殼程序初始化
+│   ├── java/top/nkbe/art/
+│   │   ├── engine/                 # NPatch 可用之獨立加固引擎模組
+│   │   │   ├── JiaguEngine.java     # 線程安全、非阻塞式加固執行器
+│   │   │   ├── JiaguOptions.java    # 加固參數 (預設關閉符合按需策略)
+│   │   │   └── JiaguListener.java   # 日誌與進度監聽介面
+│   │   ├── NeoArtUi.kt             # Jetpack Compose 3 頁式與液態玻璃底欄 UI
+│   │   └── MainActivity.java       # 主入口與 Activity 相容層
+│   └── assets/                     # 預設 SO 廠商資料與偽 360 特徵
+└── SUBMODULE_GUIDE.md              # NPatch 子模組引入指南
 ```
 
 ---
 
-# 壳 So 的获取方式
+## 📄 授權協定 (License)
 
-理论上壳程序（`libArkStub.so`）可以独立维护和发布。
-
-但为了简化开发流程，本项目直接将壳 So 编译到加固工具自身 APK 中。
-
-在 `MainActivity` 的：
-
-```java
-getSelfApkStubAbiList()
-```
-
-方法中，会将当前 APK 视为一个 Zip 压缩包进行解析，并从 APK 内部提取对应 ABI 的壳 So 文件。
-
-这样可以避免：
-
-* 单独维护壳资源包
-* 单独下载壳文件
-* 版本同步问题
-
-同时也使整个加固工具能够以单 APK 的形式独立运行。
+本项目基于 [MIT License](LICENSE) 开源发布。欢迎提交 PR 和 Issue！
