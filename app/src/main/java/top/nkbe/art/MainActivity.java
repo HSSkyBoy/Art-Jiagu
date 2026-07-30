@@ -724,9 +724,9 @@ public class MainActivity extends ComponentActivity {
             case FAKE_360_NORMAL:
                 return "assets/libjiagu.so";
             case FAKE_360_PAID:
-                return "assets/libjaigu_mips.a";
+                return "assets/libjiagu_mips.a";
             case FAKE_360_ENTERPRISE:
-                return "assets/libjaigu_vip.so";
+                return "assets/libjiagu_vip.so";
             default:
                 return null;
         }
@@ -1347,61 +1347,6 @@ public class MainActivity extends ComponentActivity {
                 appendLogOnUi("----------->>>加固完成<<<-----------");
                 File finalProtectedApk = protectedApk;
                 runOnUiThread(() -> {
-
-                String appName = readApplicationName(copiedApk);
-                appendLogOnUi("原始入口：" + appName);
-
-                File shellDex = generateShellDex(workDir);
-                //appendLogOnUi("壳已生成：" + shellDex.getAbsolutePath());
-
-                byte[] signHash64 = getSignHash64ForShell();//读取64位证书hash
-
-
-                buildEncryptedShellDex(copiedApk, shellDex, appName, signHash64);
-                appendLogOnUi("加密完成：" + shellDex.getAbsolutePath());
-
-                extractStubSoByTargetAbi(copiedApk, workDir);
-                //appendLogOnUi("壳 so 解压完成");
-
-                File newManifest = modifyAndroidManifest(copiedApk, workDir);
-                //appendLogOnUi("修改后的 Manifest：" + newManifest.getAbsolutePath());
-
-                //File protectedApk = rebuildProtectedApk(copiedApk, workDir);
-                File protectedApk = rebuildProtectedApk(copiedApk, workDir, originalApkName);
-
-                appendLogOnUi("开始进行 ZIPALIGN");
-                protectedApk = zipAlignApk(protectedApk);
-                appendLogOnUi("ZIPALIGN 完成");
-
-                ArkSettings settings = readArkSettings();
-                boolean autoSign = settings != null && settings.autoSign;
-                if (autoSign) {
-                    appendLogOnUi("检测到已开启自动签名");
-
-                    if (settings.useCustomJks) {
-                        protectedApk = ApkSignUtil.signApk(
-                                MainActivity.this,
-                                protectedApk,
-                                new File(settings.jksPath),
-                                settings.jksStorePass,
-                                settings.jksAlias,
-                                settings.jksKeyPass
-                        );
-                    } else {
-                        protectedApk = ApkSignUtil.signApk(MainActivity.this, protectedApk);
-                    }
-
-                    appendLogOnUi("APK 签名完成");
-                } else {
-                    appendLogOnUi("未开启自动签名，跳过签名");
-                }
-
-                appendLogOnUi("加固包输出：" + protectedApk.getAbsolutePath());
-
-                //cleanTempFiles(workDir);
-                appendLogOnUi("----------->>>加固完成<<<-----------");
-                File finalProtectedApk = protectedApk;
-                runOnUiThread(() -> {
                     android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(MainActivity.this)
                             .setTitle("加固完成")
                             .setMessage("APK 已加固完成，是否立即安装？")
@@ -1415,6 +1360,10 @@ public class MainActivity extends ComponentActivity {
                     dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
                             .setOnClickListener(v -> {
                                 installApk(finalProtectedApk);
+
+                                // 不关闭弹窗
+                            });
+                });
             } catch (Exception e) {
                 appendLogOnUi("处理失败：" + e.getMessage());
             } finally {
@@ -1445,6 +1394,32 @@ public class MainActivity extends ComponentActivity {
                         settings.jksPath,
                         settings.jksStorePass,
                         settings.jksAlias,
+                        settings.jksKeyPass
+                )) {
+                    return null;
+                }
+
+                sha256 = JksSha256Util.getJksSha256FromFile(
+                        new File(settings.jksPath),
+                        settings.jksStorePass,
+                        settings.jksAlias,
+                        settings.jksKeyPass,
+                        getCacheDir()
+                );
+            } else {
+                appendLogOnUi("使用内置 npatch.key 获取 指纹");
+
+                sha256 = JksSha256Util.getNpatchKeySha256(this);
+            }
+
+            if (sha256 == null) {
+                appendLogOnUi("证书指纹获取失败：结果为空");
+                return null;
+            }
+
+            sha256 = sha256.trim();
+            sha256 = sha256.toLowerCase(java.util.Locale.ROOT);
+
             if (sha256.length() != 64) {
                 appendLogOnUi("证书指纹长度异常：" + sha256.length());
                 return null;
