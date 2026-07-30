@@ -693,7 +693,8 @@ private fun LogsPage(controller: NeoArtUiController) {
 }
 
 /**
- * Liquid Glassmorphic Bottom Navigation Bar
+ * NPatch-Style Liquid Glassmorphic Bottom Navigation Bar
+ * Features double-layer glass specular highlights, floating acrylic container, and active liquid capsule animations.
  */
 @Composable
 private fun NeoArtBottomBar(
@@ -703,26 +704,36 @@ private fun NeoArtBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
-        val glassBg = COUITheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
-        val glassBorder = COUITheme.colorScheme.primary.copy(alpha = 0.18f)
+        val glassBg = COUITheme.colorScheme.surfaceContainer.copy(alpha = 0.70f)
+        val glassBorderPrimary = COUITheme.colorScheme.primary.copy(alpha = 0.32f)
 
+        // Outer Glass Capsule Floating Box
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
-                .clip(RoundedCornerShape(30.dp))
+                .height(64.dp)
+                .clip(RoundedCornerShape(32.dp))
                 .background(glassBg)
                 .border(
-                    width = 1.dp,
-                    color = glassBorder,
-                    shape = RoundedCornerShape(30.dp)
+                    width = 1.2.dp,
+                    color = glassBorderPrimary,
+                    shape = RoundedCornerShape(32.dp)
                 )
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 6.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
+            // Top specular highlight line (Glass Refraction)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(1.dp)
+                    .align(Alignment.TopCenter)
+                    .background(Color.White.copy(alpha = 0.45f))
+            )
+
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -736,30 +747,51 @@ private fun NeoArtBottomBar(
 
                 items.forEach { (index, label, icon) ->
                     val selected = selectedTab == index
-                    val animColor by androidx.compose.animation.animateColorAsState(
-                        targetValue = if (selected) COUITheme.colorScheme.primary.copy(alpha = 0.22f) else Color.Transparent,
-                        label = "tabBg"
+
+                    val animBgColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) COUITheme.colorScheme.primary.copy(alpha = 0.24f) else Color.Transparent,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "pillBg"
+                    )
+                    val animBorderColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) COUITheme.colorScheme.primary.copy(alpha = 0.45f) else Color.Transparent,
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "pillBorder"
                     )
                     val animTextColor by androidx.compose.animation.animateColorAsState(
                         targetValue = if (selected) COUITheme.colorScheme.primary else COUITheme.colorScheme.onSurfaceVariantSummary,
-                        label = "tabText"
+                        animationSpec = androidx.compose.animation.core.tween(250),
+                        label = "pillText"
+                    )
+                    val scale by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (selected) 1.05f else 0.96f,
+                        animationSpec = androidx.compose.animation.core.spring(
+                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                        ),
+                        label = "pillScale"
                     )
 
                     Row(
                         modifier = Modifier
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(animColor)
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(23.dp))
+                            .background(animBgColor)
+                            .border(
+                                width = if (selected) 1.dp else 0.dp,
+                                color = animBorderColor,
+                                shape = RoundedCornerShape(23.dp)
+                            )
                             .clickable { onSelectTab(index) }
-                            .padding(horizontal = 20.dp),
+                            .padding(horizontal = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = icon,
-                            fontSize = 16.sp
+                            fontSize = 17.sp,
+                            modifier = Modifier.padding(end = 6.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
                         Text(
                             text = label,
                             color = animTextColor,
