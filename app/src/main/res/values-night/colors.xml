@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dialog backgrounds -->
+    <color name="dialog_background">#1E1E2E</color>
+    <color name="dialog_stroke">#313244</color>
+
+    <!-- Input fields -->
+    <color name="dialog_input_background">#181825</color>
+    <color name="dialog_input_stroke">#45475A</color>
+
+    <!-- Text colors -->
+    <color name="dialog_text_title">#CDD6F4</color>
+    <color name="dialog_text_primary">#BAC2DE</color>
+    <color name="dialog_text_secondary">#A6ADC8</color>
+    <color name="dialog_text_hint">#6C7086</color>
+
+    <!-- Button -->
+    <color name="button_primary">#89B4FA</color>
+    <color name="button_delete">#F38BA8</color>
+</resources>

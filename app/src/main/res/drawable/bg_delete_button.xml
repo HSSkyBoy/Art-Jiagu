@@ -3,6 +3,6 @@
 
     <corners android:radius="12dp"/>
 
-    <solid android:color="#E53935"/>
+    <solid android:color="@color/button_delete"/>
 
 </shape>

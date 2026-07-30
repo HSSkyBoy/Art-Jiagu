@@ -20,7 +20,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="加固设置"
-                android:textColor="#1F2937"
+                android:textColor="@color/dialog_text_title"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -29,7 +29,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:text="自定义 so 名称"
-                android:textColor="#374151"
+                android:textColor="@color/dialog_text_primary"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -48,7 +48,7 @@
                     android:paddingEnd="12dp"
                     android:singleLine="true"
                     android:text="ArkStub"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
                 <ImageButton
@@ -70,7 +70,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:text="自定义壳类名(支持中文)"
-                android:textColor="#374151"
+                android:textColor="@color/dialog_text_primary"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -90,8 +90,8 @@
                     android:paddingEnd="12dp"
                     android:singleLine="true"
                     android:text="com.ark.safe.StubApp"
-                    android:textColor="#1F2937"
-                    android:textColorHint="#9CA3AF"
+                    android:textColor="@color/dialog_text_title"
+                    android:textColorHint="@color/dialog_text_hint"
                     android:textSize="14sp" />
 
                 <ImageButton
@@ -113,7 +113,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:text="文件保存路径"
-                android:textColor="#374151"
+                android:textColor="@color/dialog_text_primary"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -131,7 +131,7 @@
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:singleLine="true"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
                 <ImageButton
@@ -161,7 +161,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="自动签名\n开启后才有签名校验"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="12sp" />
 
                 <Switch
@@ -176,7 +176,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:text="360 伪加固识别特征"
-                android:textColor="#374151"
+                android:textColor="@color/dialog_text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -185,7 +185,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="仅添加 MT 管理器等工具的识别特征，不提供真实 360 加固保护。启用后壳类名将使用 com.stub.StubApp。"
-                android:textColor="#6B7280"
+                android:textColor="@color/dialog_text_secondary"
                 android:textSize="12sp" />
 
             <RadioGroup
@@ -212,13 +212,13 @@
                     android:id="@+id/rbFake360Paid"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="付费（assets/libjaigu_mips.a）" />
+                    android:text="付费（assets/libjiagu_mips.a）" />
 
                 <RadioButton
                     android:id="@+id/rbFake360Enterprise"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="企业（assets/libjaigu_vip.so）" />
+                    android:text="企业（assets/libjiagu_vip.so）" />
             </RadioGroup>
 
             <LinearLayout
@@ -232,7 +232,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="使用自定义JKS证书\n开启=使用自定义证书校验\n关闭=使用内置证书校验"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="12sp" />
 
                 <Switch
@@ -254,7 +254,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="JKS证书文件路径"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="14sp" />
 
                 <EditText
@@ -266,7 +266,7 @@
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:singleLine="true"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
                 <TextView
@@ -274,7 +274,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
                     android:text="证书密码"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="14sp" />
 
                 <EditText
@@ -287,7 +287,7 @@
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:singleLine="true"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
                 <TextView
@@ -295,7 +295,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
                     android:text="别名"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="14sp" />
 
                 <EditText
@@ -307,7 +307,7 @@
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:singleLine="true"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
                 <TextView
@@ -315,7 +315,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="14dp"
                     android:text="别名密码"
-                    android:textColor="#374151"
+                    android:textColor="@color/dialog_text_primary"
                     android:textSize="14sp" />
 
                 <EditText
@@ -328,7 +328,7 @@
                     android:paddingStart="12dp"
                     android:paddingEnd="12dp"
                     android:singleLine="true"
-                    android:textColor="#1F2937"
+                    android:textColor="@color/dialog_text_title"
                     android:textSize="14sp" />
 
             </LinearLayout>
