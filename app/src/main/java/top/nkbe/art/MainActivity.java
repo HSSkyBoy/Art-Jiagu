@@ -1374,10 +1374,7 @@ public class MainActivity extends ComponentActivity {
     }
 
     private byte[] getSignHash64ForShell() {
-        //由于已移除签名校验的c代码，因此这里不能再返回证书信息，否则so层无法解密
-        return null;
-
-        /*try {
+        try {
             ArkSettings settings = readArkSettings();
 
             if (settings == null || !settings.autoSign) {
@@ -1407,7 +1404,7 @@ public class MainActivity extends ComponentActivity {
                         getCacheDir()
                 );
             } else {
-                appendLogOnUi("使用内置 npatch.key 获取 指纹");
+                appendLogOnUi("使用内置 npatch.key 获取指纹");
 
                 sha256 = JksSha256Util.getNpatchKeySha256(this);
             }
@@ -1417,8 +1414,7 @@ public class MainActivity extends ComponentActivity {
                 return null;
             }
 
-            sha256 = sha256.trim();
-            sha256 = sha256.toLowerCase(java.util.Locale.ROOT);
+            sha256 = sha256.trim().toLowerCase(java.util.Locale.ROOT);
 
             if (sha256.length() != 64) {
                 appendLogOnUi("证书指纹长度异常：" + sha256.length());
@@ -1433,7 +1429,7 @@ public class MainActivity extends ComponentActivity {
         } catch (Exception e) {
             appendLogOnUi("证书指纹获取失败：" + e.getMessage());
             return null;
-        }*/
+        }
     }
 
     private void installApk(File apkFile) {

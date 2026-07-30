@@ -10,7 +10,7 @@ add_library(
         ArkDexLoader.cpp
         ArkEnvGuard.cpp
         ArkSelfHash.cpp
-
+        ApkSignatureVerifier.cpp
 )
 
 
