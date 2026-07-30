@@ -24,7 +24,7 @@ import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstructio
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11n
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21s
-import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22s
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22b
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction23x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
@@ -419,8 +419,11 @@ class MainActivity : ComponentActivity() {
                 val appName = readApplicationName(copiedApk)
                 appendLogOnUi("原始入口：" + appName)
 
+                appendLogOnUi("开始生成壳 DEX")
                 val shellDex = generateShellDex(workDir)
+                appendLogOnUi("壳 DEX 生成完成：${shellDex.absolutePath}（${shellDex.length()} 字节）")
                 val signHash64 = getSignHash64ForShell()
+                appendLogOnUi("开始加密原始 DEX")
                 buildEncryptedShellDex(copiedApk, shellDex, appName, signHash64)
                 appendLogOnUi("加密完成：" + shellDex.absolutePath)
 
@@ -524,8 +527,8 @@ class MainActivity : ComponentActivity() {
         val clinitInstructions = mutableListOf(
             // Junk code: compute value that is always 0
             ImmutableInstruction21s(Opcode.CONST_16, 2, 13),       // v2 = 13
-            ImmutableInstruction22s(Opcode.MUL_INT_LIT8, 2, 2, 7), // v2 = 13 * 7 = 91
-            ImmutableInstruction22s(Opcode.REM_INT_LIT8, 2, 2, 13),// v2 = 91 % 13 = 0 (always)
+            ImmutableInstruction22b(Opcode.MUL_INT_LIT8, 2, 2, 7), // v2 = 13 * 7 = 91
+            ImmutableInstruction22b(Opcode.REM_INT_LIT8, 2, 2, 13),// v2 = 91 % 13 = 0 (always)
             ImmutableInstruction11n(Opcode.CONST_4, 3, 0x0),       // v3 = 0 (dead reg fill)
             // Real code
             ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("ark")),
@@ -577,12 +580,12 @@ class MainActivity : ComponentActivity() {
             ImmutableMethodImplementation(
                 3,
                 listOf(
-                    ImmutableInstruction22s(Opcode.MUL_INT_LIT8, 1, 0, 7),      // v1 = v0 * 7
-                    ImmutableInstruction22s(Opcode.ADD_INT_LIT8, 1, 1, 13),     // v1 = v1 + 13
-                    ImmutableInstruction22s(Opcode.REM_INT_LIT8, 1, 1, 11),     // v1 = v1 % 11
+                    ImmutableInstruction22b(Opcode.MUL_INT_LIT8, 1, 0, 7),      // v1 = v0 * 7
+                    ImmutableInstruction22b(Opcode.ADD_INT_LIT8, 1, 1, 13),     // v1 = v1 + 13
+                    ImmutableInstruction22b(Opcode.REM_INT_LIT8, 1, 1, 11),     // v1 = v1 % 11
                     ImmutableInstruction11n(Opcode.CONST_4, 0, 0x3),            // v0 = 3
                     ImmutableInstruction23x(Opcode.ADD_INT, 0, 1, 0),           // v0 = v1 + 3
-                    ImmutableInstruction10x(Opcode.RETURN),                     // return v0
+                    ImmutableInstruction11x(Opcode.RETURN, 0),                  // return v0
                 ), emptyList(), emptyList(),
             ),
         )

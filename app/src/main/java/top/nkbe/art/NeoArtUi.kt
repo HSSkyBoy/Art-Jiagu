@@ -102,11 +102,46 @@ enum class LogLevel(val label: String, val prefix: String) {
     WARN("警告", "[WARN]"),
     ERROR("错误", "[ERROR]"),
     DEBUG("调试", "[DEBUG]");
+
+    companion object {
+        fun infer(message: String): LogLevel {
+            val normalized = message.trim()
+            entries.firstOrNull {
+                it != ALL && normalized.startsWith(it.prefix, ignoreCase = true)
+            }?.let { return it }
+
+            // Recoverable fallbacks are warnings even when the underlying operation failed.
+            if (listOf("使用默认", "跳过", "未开启", "没有 lib", "不支持", "为空")
+                    .any(normalized::contains)) {
+                return WARN
+            }
+            if (listOf("失败", "异常", "错误", "非法", "无效")
+                    .any(normalized::contains)) {
+                return ERROR
+            }
+            return INFO
+        }
+
+        fun format(message: String, level: LogLevel = infer(message)): String =
+            message.lineSequence()
+                .map { line ->
+                    val trimmed = line.trimEnd()
+                    if (entries.any {
+                            it != ALL && trimmed.startsWith(it.prefix, ignoreCase = true)
+                        }
+                    ) {
+                        trimmed
+                    } else {
+                        "${level.prefix} $trimmed"
+                    }
+                }
+                .joinToString("\n")
+    }
 }
 
 class NeoArtUiController internal constructor(initialLog: String = "等待文件访问授权…") {
     internal var selectedTab by mutableIntStateOf(0)
-    internal var logText by mutableStateOf(initialLog)
+    internal var logText by mutableStateOf(LogLevel.format(initialLog))
         private set
     internal var selectButtonEnabled by mutableStateOf(true)
         private set
@@ -119,10 +154,11 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
 
     var onSaveSettingsHandler: ((ArkSettingsData) -> String?)? = null
 
-    fun appendLog(message: String) {
-        logText = if (logText.isBlank()) message else "$logText\n$message"
+    fun appendLog(message: String, level: LogLevel = LogLevel.infer(message)) {
+        val formatted = LogLevel.format(message, level)
+        logText = if (logText.isBlank()) formatted else "$logText\n$formatted"
     }
-    fun clearLog() { logText = "日志已清空" }
+    fun clearLog() { logText = LogLevel.format("日志已清空", LogLevel.INFO) }
     fun setSelectEnabled(enabled: Boolean) { selectButtonEnabled = enabled }
     fun updateSelectedApk(path: String) { selectedApkPath = path }
     fun loadSettings(data: ArkSettingsData) { settingsState = data }
@@ -666,7 +702,7 @@ private fun LogsPage(controller: NeoArtUiController) {
     val lines = remember(controller.logText, filter) {
         val all = controller.logText.split("\n")
         if (filter == LogLevel.ALL) all
-        else all.filter { it.contains(filter.prefix, ignoreCase = true) }
+        else all.filter { it.startsWith(filter.prefix, ignoreCase = true) }
     }
     val text = lines.joinToString("\n")
     val total = controller.logText.lines().size
