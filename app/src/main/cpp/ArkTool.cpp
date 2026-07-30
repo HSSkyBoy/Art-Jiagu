@@ -616,6 +616,12 @@ static void native_buildEncryptedShellDex(
         return;
     }
 
+    {
+        char logText[192];
+        snprintf(logText, sizeof(logText), "读取壳 dex 成功，大小：%d", static_cast<int>(shellDex.size()));
+        appendLogOnUiNative(env, thiz, logText);
+    }
+
     if (!isValidDexBytes(shellDex)) {
         throwRuntimeException(env, "壳 dex 非法");
         return;
@@ -626,6 +632,7 @@ static void native_buildEncryptedShellDex(
         throwRuntimeException(env, "获取 APK 路径失败");
         return;
     }
+    appendLogOnUiNative(env, thiz, "开始扫描目标 APK 中的 dex");
 
     jclass clsZipFile = env->FindClass("java/util/zip/ZipFile");
     jmethodID midZipInit = env->GetMethodID(
@@ -659,6 +666,7 @@ static void native_buildEncryptedShellDex(
 
     std::vector<unsigned char> payload;
     int dexCount = 0;
+    int totalDexBytes = 0;
 
     for (int i = 1;; i++) {
         char dexName[64];
@@ -715,6 +723,7 @@ static void native_buildEncryptedShellDex(
 
         payload.insert(payload.end(), block.begin(), block.end());
         dexCount++;
+        totalDexBytes += static_cast<int>(dexData.size());
 
         char logText[160];
         snprintf(
@@ -732,6 +741,12 @@ static void native_buildEncryptedShellDex(
     if (dexCount <= 0) {
         throwRuntimeException(env, "APK 中没有找到合法 dex");
         return;
+    }
+
+    {
+        char logText[192];
+        snprintf(logText, sizeof(logText), "目标 dex 扫描完成，共 %d 个，合计 %d 字节", dexCount, totalDexBytes);
+        appendLogOnUiNative(env, thiz, logText);
     }
 
     const char *appNameChars = env->GetStringUTFChars(realApplicationName, nullptr);
@@ -765,6 +780,11 @@ static void native_buildEncryptedShellDex(
     unsigned char dexCountBytes[4];
     intToLe4Bytes(dexCount, dexCountBytes);
     payload.insert(payload.end(), dexCountBytes, dexCountBytes + 4);
+    {
+        char logText[192];
+        snprintf(logText, sizeof(logText), "准备合并壳 dex 与载荷，载荷大小：%d", static_cast<int>(payload.size()));
+        appendLogOnUiNative(env, thiz, logText);
+    }
 
     std::vector<unsigned char> finalDex;
     finalDex.reserve(shellDex.size() + payload.size());
@@ -776,11 +796,17 @@ static void native_buildEncryptedShellDex(
         throwRuntimeException(env, "修复 dex 头失败");
         return;
     }
+    {
+        char logText[192];
+        snprintf(logText, sizeof(logText), "dex 头修复完成，最终大小：%d", static_cast<int>(fixedDex.size()));
+        appendLogOnUiNative(env, thiz, logText);
+    }
 
     if (!writeAllBytesToFile(env, shellDexFile, fixedDex)) {
         throwRuntimeException(env, "写入壳 dex 失败");
         return;
     }
+    appendLogOnUiNative(env, thiz, "加密壳 dex 已写回文件");
 }
 
 static JNINativeMethod gMethods[] = {

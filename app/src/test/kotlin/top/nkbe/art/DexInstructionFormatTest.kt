@@ -2,6 +2,7 @@ package top.nkbe.art
 
 import com.android.tools.smali.dexlib2.Format
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction12x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22b
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11x
 import org.junit.Assert.assertEquals
@@ -24,5 +25,11 @@ class DexInstructionFormatTest {
     fun `return with a value uses format 11x`() {
         val instruction = ImmutableInstruction11x(Opcode.RETURN, 0)
         assertEquals(Format.Format11x, instruction.opcode.format)
+    }
+
+    @Test
+    fun `move between registers uses format 12x`() {
+        val instruction = ImmutableInstruction12x(Opcode.MOVE, 0, 2)
+        assertEquals(Format.Format12x, instruction.opcode.format)
     }
 }

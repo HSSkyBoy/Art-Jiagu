@@ -21,7 +21,7 @@ object ApkSignUtil {
     @JvmStatic
     @Throws(Exception::class)
     fun signApk(context: Context, inputApk: File): File =
-        signApk(context, inputApk, null, null, null, null)
+        signApk(context, inputApk, null, null, null, null, null)
 
     @JvmStatic
     @Throws(Exception::class)
@@ -32,26 +32,32 @@ object ApkSignUtil {
         storePassword: String?,
         keyAlias: String?,
         keyPassword: String?,
+        logger: ((String) -> Unit)?,
     ): File {
-        Log.d(TAG, "========== 开始 APK 签名 ==========")
-        Log.d(TAG, "输入 APK 路径：${inputApk.absolutePath}")
-        Log.d(TAG, "输入 APK 是否存在：${inputApk.exists()}")
-        Log.d(TAG, "输入 APK 是否文件：${inputApk.isFile}")
-        Log.d(TAG, "输入 APK 大小：${inputApk.length()}")
+        fun uiLog(message: String) {
+            Log.d(TAG, message)
+            logger?.invoke(message)
+        }
+
+        uiLog("========== 开始 APK 签名 ==========")
+        uiLog("输入 APK 路径：${inputApk.absolutePath}")
+        uiLog("输入 APK 是否存在：${inputApk.exists()}")
+        uiLog("输入 APK 是否文件：${inputApk.isFile}")
+        uiLog("输入 APK 大小：${inputApk.length()} 字节")
 
         require(inputApk.isFile) { "APK 文件不存在" }
         val parentDir = requireNotNull(inputApk.parentFile?.takeIf(File::exists)) {
             "APK 所在目录不存在"
         }
 
-        Log.d(TAG, "APK 父目录：${parentDir.absolutePath}")
-        Log.d(TAG, "步骤①：开始 zipalign")
-        optimizeApk(inputApk)
-        Log.d(TAG, "步骤①：zipalign 完成")
-        Log.d(TAG, "zipalign 后 APK 大小：${inputApk.length()}")
+        uiLog("APK 父目录：${parentDir.absolutePath}")
+        uiLog("步骤①：开始 zipalign")
+        optimizeApk(inputApk, logger)
+        uiLog("步骤①：zipalign 完成")
+        uiLog("zipalign 后 APK 大小：${inputApk.length()} 字节")
 
         val outputApk = File(parentDir, buildSignedName(inputApk.name))
-        Log.d(TAG, "输出 APK 路径：${outputApk.absolutePath}")
+        uiLog("输出 APK 路径：${outputApk.absolutePath}")
         if (outputApk.exists() && !outputApk.delete()) {
             throw IOException("无法删除旧签名 APK：${outputApk.absolutePath}")
         }
@@ -67,7 +73,7 @@ object ApkSignUtil {
             val realKeyPass: String?
 
             if (useAssetKeystore) {
-                Log.d(TAG, "使用默认 assets 证书：$DEFAULT_KEYSTORE_NAME")
+                uiLog("使用默认 assets 证书：$DEFAULT_KEYSTORE_NAME")
                 tempKeystore = extractAssetKeystore(context)
                 realKeystore = tempKeystore
                 realStorePass = DEFAULT_STORE_PASS
@@ -78,17 +84,19 @@ object ApkSignUtil {
                 realStorePass = storePassword
                 realAlias = keyAlias
                 realKeyPass = keyPassword
-                Log.d(TAG, "使用外部证书：${realKeystore.absolutePath}")
+                uiLog("使用外部证书：${realKeystore.absolutePath}")
             }
 
-            Log.d(TAG, "证书路径：${realKeystore.absolutePath}")
-            Log.d(TAG, "证书是否存在：${realKeystore.exists()}")
-            Log.d(TAG, "证书大小：${realKeystore.length()}")
-            Log.d(TAG, "证书别名：$realAlias")
-            Log.d(TAG, "证书密码长度：${realStorePass?.length ?: -1}")
-            Log.d(TAG, "密钥密码长度：${realKeyPass?.length ?: -1}")
+            uiLog("证书路径：${realKeystore.absolutePath}")
+            uiLog("证书是否存在：${realKeystore.exists()}")
+            uiLog("证书大小：${realKeystore.length()} 字节")
+            uiLog("证书别名：$realAlias")
+            uiLog("证书密码长度：${realStorePass?.length ?: -1}")
+            uiLog("密钥密码长度：${realKeyPass?.length ?: -1}")
 
             checkSignParams(realKeystore, realStorePass, realAlias, realKeyPass)
+            uiLog("签名参数校验通过")
+            uiLog("步骤②：开始执行 APK 签名")
 
             ApkSigner(inputApk, outputApk).apply {
                 useDefaultSignatureVersion = false
@@ -108,29 +116,37 @@ object ApkSignUtil {
                 throw IOException("签名失败：输出 APK 文件异常")
             }
             signSuccess = true
-            Log.d(TAG, "APK 签名成功：${outputApk.absolutePath}")
+            uiLog("APK 签名成功：${outputApk.absolutePath}")
+            uiLog("签名后 APK 大小：${outputApk.length()} 字节")
             return outputApk
         } catch (error: Exception) {
             Log.e(TAG, "APK 签名异常：${error.message}", error)
             throw error
         } finally {
             tempKeystore?.takeIf(File::exists)?.let {
-                Log.d(TAG, "删除临时证书：${it.delete()}")
+                uiLog("删除临时证书：${it.delete()}")
             }
             if (signSuccess && inputApk.exists()) {
-                Log.d(TAG, "签名成功，删除原 APK：${inputApk.delete()}")
+                uiLog("签名成功，删除原 APK：${inputApk.delete()}")
             }
-            Log.d(TAG, "========== APK 签名流程结束 ==========")
+            uiLog("========== APK 签名流程结束 ==========")
         }
     }
 
     @JvmStatic
     @Throws(IOException::class)
-    fun optimizeApk(apkFile: File) {
+    fun optimizeApk(apkFile: File, logger: ((String) -> Unit)? = null) {
+        fun uiLog(message: String) {
+            Log.d(TAG, message)
+            logger?.invoke(message)
+        }
+
         require(apkFile.isFile) { "APK 文件无效" }
         val parent = apkFile.parentFile ?: throw IOException("无法获取 APK 目录")
         val alignedTmp = File.createTempFile("${apkFile.name}.zipalign.", ".tmp", parent)
         var success = false
+        uiLog("zipalign 输入文件：${apkFile.absolutePath}")
+        uiLog("zipalign 临时输出：${alignedTmp.absolutePath}")
 
         try {
             success = ZipAlign.doZipAlign(
@@ -144,16 +160,19 @@ object ApkSignUtil {
             if (!ZipAlign.isZipAligned(alignedTmp.absolutePath, 4, true)) {
                 throw IOException("zipalign 校验失败")
             }
+            uiLog("zipalign 校验通过")
             if (!apkFile.delete()) throw IOException("无法删除原 APK 文件")
+            uiLog("已删除原 APK，准备替换为对齐版本")
             if (!alignedTmp.renameTo(apkFile)) {
                 throw IOException("对齐 APK 替换原文件失败")
             }
+            uiLog("对齐 APK 替换完成：${apkFile.absolutePath}")
         } catch (error: IOException) {
             Log.e(TAG, "zipalign 异常：${error.message}", error)
             throw error
         } finally {
             if (!success && alignedTmp.exists()) {
-                Log.d(TAG, "zipalign 失败，删除临时文件：${alignedTmp.delete()}")
+                uiLog("zipalign 失败，删除临时文件：${alignedTmp.delete()}")
             }
         }
     }

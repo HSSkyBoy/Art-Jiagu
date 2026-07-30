@@ -1,6 +1,5 @@
 package top.nkbe.art
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
@@ -24,6 +23,7 @@ import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstructio
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction11n
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21s
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction12x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction22b
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction23x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
@@ -123,16 +123,21 @@ class MainActivity : ComponentActivity() {
         if (isPermissionDialogShowing) return
         isPermissionDialogShowing = true
 
-        AlertDialog.Builder(this)
-            .setTitle("需要文件访问权限")
-            .setMessage("本工具需要文件访问权限，才能读取和处理 APK 文件。请点击去授权。")
-            .setCancelable(false)
-            .setPositiveButton("去授权") { dialog, _ ->
-                isPermissionDialogShowing = false
-                dialog.dismiss()
-                openAllFilePermissionPage()
-            }
-            .show()
+        uiController.showDialog(
+            NeoArtDialogState(
+                title = "需要文件访问权限",
+                message = "本工具需要文件访问权限，才能读取和处理 APK 文件。请点击去授权。",
+                confirmText = "去授权",
+                cancelable = false,
+                onConfirm = {
+                    isPermissionDialogShowing = false
+                    openAllFilePermissionPage()
+                },
+                onDismiss = {
+                    isPermissionDialogShowing = false
+                },
+            )
+        )
     }
 
     private fun hasAllFilePermission(): Boolean = when {
@@ -411,8 +416,12 @@ class MainActivity : ComponentActivity() {
 
                 var originalApkName = getFileNameFromUri(uri)
                 originalApkName = ApkValidator.sanitizeApkFileName(originalApkName)
+                appendLogOnUi("目标 APK 名称：$originalApkName")
                 val copiedApk = File(workDir, "待加固.apk")
+                appendLogOnUi("开始复制目标 APK 到工作目录")
                 copyUriToFile(uri, copiedApk)
+                appendLogOnUi("APK 复制完成：${copiedApk.absolutePath}（${copiedApk.length()} 字节）")
+                appendLogOnUi("开始校验 APK 结构")
                 ApkValidator.validate(copiedApk)
                 appendLogOnUi("APK 结构校验通过")
 
@@ -425,15 +434,21 @@ class MainActivity : ComponentActivity() {
                 val signHash64 = getSignHash64ForShell()
                 appendLogOnUi("开始加密原始 DEX")
                 buildEncryptedShellDex(copiedApk, shellDex, appName, signHash64)
-                appendLogOnUi("加密完成：" + shellDex.absolutePath)
+                appendLogOnUi("加密完成：" + shellDex.absolutePath + "（" + shellDex.length() + " 字节）")
 
+                appendLogOnUi("开始提取壳 SO")
                 extractStubSoByTargetAbi(copiedApk, workDir)
+                appendLogOnUi("壳 SO 提取完成")
+                appendLogOnUi("开始改写 AndroidManifest.xml")
                 val newManifest = modifyAndroidManifest(copiedApk, workDir)
+                appendLogOnUi("Manifest 改写完成：${newManifest.absolutePath}（${newManifest.length()} 字节）")
+                appendLogOnUi("开始重建加固 APK")
                 var protectedApk = rebuildProtectedApk(copiedApk, workDir, originalApkName)
+                appendLogOnUi("重建 APK 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
 
                 appendLogOnUi("开始进行 ZIPALIGN")
                 protectedApk = zipAlignApk(protectedApk)
-                appendLogOnUi("ZIPALIGN 完成")
+                appendLogOnUi("ZIPALIGN 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
 
                 val settings = readArkSettings()
                 if (settings.autoSign) {
@@ -441,10 +456,18 @@ class MainActivity : ComponentActivity() {
                     protectedApk = if (settings.useCustomJks) {
                         ApkSignUtil.signApk(
                             this, protectedApk, File(settings.jksPath),
-                            settings.jksStorePass, settings.jksAlias, settings.jksKeyPass,
+                            settings.jksStorePass, settings.jksAlias, settings.jksKeyPass, ::appendLogOnUi,
                         )
                     } else {
-                        ApkSignUtil.signApk(this, protectedApk)
+                        ApkSignUtil.signApk(
+                            this,
+                            protectedApk,
+                            null,
+                            null,
+                            null,
+                            null,
+                            ::appendLogOnUi,
+                        )
                     }
                     appendLogOnUi("APK 签名完成")
                 } else {
@@ -456,15 +479,16 @@ class MainActivity : ComponentActivity() {
 
                 val finalApk = protectedApk
                 runOnUiThread {
-                    val dialog = AlertDialog.Builder(this)
-                        .setTitle("加固完成")
-                        .setMessage("APK 已加固完成，是否立即安装？")
-                        .setPositiveButton("安装", null)
-                        .setNegativeButton("取消") { d, _ -> d.dismiss() }
-                        .setCancelable(false)
-                        .create()
-                    dialog.show()
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { installApk(finalApk) }
+                    uiController.showDialog(
+                        NeoArtDialogState(
+                            title = "加固完成",
+                            message = "APK 已加固完成，是否立即安装？",
+                            confirmText = "安装",
+                            dismissText = "取消",
+                            cancelable = false,
+                            onConfirm = { installApk(finalApk) },
+                        )
+                    )
                 }
             } catch (e: Exception) {
                 appendLogOnUi("处理失败：" + e.message)
@@ -580,6 +604,7 @@ class MainActivity : ComponentActivity() {
             ImmutableMethodImplementation(
                 3,
                 listOf(
+                    ImmutableInstruction12x(Opcode.MOVE, 0, 2),                 // v0 = p0
                     ImmutableInstruction22b(Opcode.MUL_INT_LIT8, 1, 0, 7),      // v1 = v0 * 7
                     ImmutableInstruction22b(Opcode.ADD_INT_LIT8, 1, 1, 13),     // v1 = v1 + 13
                     ImmutableInstruction22b(Opcode.REM_INT_LIT8, 1, 1, 11),     // v1 = v1 % 11
@@ -633,6 +658,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (finalAbiList.isEmpty()) throw RuntimeException("没有匹配到可解压的 ABI")
+        appendLogOnUi("最终使用 ABI：" + finalAbiList.toString())
 
         val soFileName = validSoFileName
         for (abi in finalAbiList) {
@@ -641,6 +667,7 @@ class MainActivity : ComponentActivity() {
             if (!parent.exists() && !parent.mkdirs())
                 throw RuntimeException("创建 so 输出目录失败：" + parent.absolutePath)
             copySelfApkStubSoToFile(abi, outFile)
+            appendLogOnUi("已提取壳 SO：${outFile.absolutePath}（${outFile.length()} 字节）")
         }
     }
 
@@ -715,6 +742,7 @@ class MainActivity : ComponentActivity() {
             appendLogOnUi("已提取 AndroidManifest.xml")
 
             Xml2AxmlTool.decode(manifestAxml.absolutePath, manifestXml.absolutePath)
+            appendLogOnUi("Manifest 解码完成")
 
             val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
             val document = factory.newDocumentBuilder().parse(manifestXml)
@@ -731,6 +759,7 @@ class MainActivity : ComponentActivity() {
             if (application == null) throw RuntimeException("Manifest 中未找到 application 标签")
 
             rewriteApplicationAttributes(application)
+            appendLogOnUi("Manifest application 已改写为壳入口：$validStubClassName")
 
             val transformer = TransformerFactory.newInstance().newTransformer().apply {
                 setOutputProperty(OutputKeys.ENCODING, "utf-8")
@@ -739,6 +768,7 @@ class MainActivity : ComponentActivity() {
             }
             transformer.transform(DOMSource(document), StreamResult(manifestNewXml))
             Xml2AxmlTool.encode2(this, manifestNewXml.absolutePath, manifestNewAxml.absolutePath)
+            appendLogOnUi("Manifest 重新编码完成")
             return manifestNewAxml
         } finally {
             deleteFileQuietly(manifestAxml)
@@ -822,8 +852,10 @@ class MainActivity : ComponentActivity() {
         skipNames.add("AndroidManifest.xml")
         if (fake360AssetName != null) skipNames.add(fake360AssetName)
         if (libDir.exists() && libDir.isDirectory) collectLibSkipNames(libDir, libDir, skipNames)
+        appendLogOnUi("重打包时跳过条目数：" + skipNames.size)
 
         val outApk = File(finalOutputDir, buildProtectedApkName(originalApkName))
+        appendLogOnUi("重打包输出路径：" + outApk.absolutePath)
 
         ZipFile(apkFile).use { zipFile ->
             ZipOutputStream(FileOutputStream(outApk)).use { zos ->
@@ -986,17 +1018,19 @@ class MainActivity : ComponentActivity() {
         if (!apkFile.exists()) { Toast.makeText(this, "APK文件不存在", Toast.LENGTH_SHORT).show(); return }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-            AlertDialog.Builder(this)
-                .setTitle("需要安装权限")
-                .setMessage("请先允许本应用安装未知来源应用")
-                .setPositiveButton("去授权") { dialog, _ ->
-                    dialog.dismiss()
-                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:$packageName")
-                    })
-                }
-                .setNegativeButton("取消", null)
-                .show()
+            uiController.showDialog(
+                NeoArtDialogState(
+                    title = "需要安装权限",
+                    message = "请先允许本应用安装未知来源应用",
+                    confirmText = "去授权",
+                    dismissText = "取消",
+                    onConfirm = {
+                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                            data = Uri.parse("package:$packageName")
+                        })
+                    },
+                )
+            )
             return
         }
         doInstallApk(apkFile)

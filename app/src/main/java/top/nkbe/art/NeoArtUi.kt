@@ -84,6 +84,16 @@ data class ArkSettingsData(
     val jksKeyPass: String = ""
 )
 
+data class NeoArtDialogState(
+    val title: String,
+    val message: String,
+    val confirmText: String,
+    val dismissText: String? = null,
+    val cancelable: Boolean = true,
+    val onConfirm: () -> Unit,
+    val onDismiss: (() -> Unit)? = null,
+)
+
 /**
  * Status colors following the Vector design spec:
  * Green=Active, Gray=Disabled, Orange=Warning, Red=Error, Blue=Info
@@ -151,6 +161,7 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
     internal var logFilter by mutableStateOf(LogLevel.ALL)
     internal var snackbarText by mutableStateOf<String?>(null)
     internal var snackbarStatus by mutableStateOf(StatusColor.INFO)
+    internal var dialogState by mutableStateOf<NeoArtDialogState?>(null)
 
     var onSaveSettingsHandler: ((ArkSettingsData) -> String?)? = null
 
@@ -165,6 +176,8 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
     fun showSnackbar(text: String, status: StatusColor = StatusColor.INFO) {
         snackbarText = text; snackbarStatus = status
     }
+    fun showDialog(state: NeoArtDialogState) { dialogState = state }
+    fun dismissDialog() { dialogState = null }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -257,6 +270,13 @@ private fun NeoArtApp(
                         controller.showPresetDialog = false
                     },
                     onDismiss = { controller.showPresetDialog = false }
+                )
+            }
+
+            controller.dialogState?.let { state ->
+                NeoArtDialog(
+                    state = state,
+                    onDismiss = { controller.dismissDialog() },
                 )
             }
         }
@@ -911,6 +931,59 @@ private fun PresetSheet(onPick: (String) -> Unit, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton("取消", onClick = onDismiss) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NeoArtDialog(state: NeoArtDialogState, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = {
+        if (state.cancelable) {
+            onDismiss()
+            state.onDismiss?.invoke()
+        }
+    }) {
+        Card(
+            Modifier.fillMaxWidth(0.88f),
+            insideMargin = PaddingValues(20.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    state.title,
+                    color = COUITheme.colorScheme.onSurface,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    state.message,
+                    color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    state.dismissText?.let { dismissText ->
+                        TextButton(
+                            dismissText,
+                            onClick = {
+                                onDismiss()
+                                state.onDismiss?.invoke()
+                            },
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    TextButton(
+                        state.confirmText,
+                        onClick = {
+                            onDismiss()
+                            state.onConfirm()
+                        },
+                    )
+                }
             }
         }
     }
