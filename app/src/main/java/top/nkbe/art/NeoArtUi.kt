@@ -66,7 +66,7 @@ data class ArkSettingsData(
     val soName: String = "ArkStub",
     val stubClassName: String = "com.ark.safe.StubApp",
     val savePath: String = "",
-    val autoSign: Boolean = true,
+    val autoSign: Boolean = false,
     val fake360Type: Int = 0,
     val useCustomJks: Boolean = false,
     val jksPath: String = "",
