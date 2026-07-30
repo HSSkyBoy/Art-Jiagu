@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -49,7 +48,7 @@ import io.github.suqi8.coui.kmp.theme.ThemeController
 class NeoArtUiController internal constructor(initialLog: String = "等待文件访问授权…") {
     internal var logText by mutableStateOf(initialLog)
         private set
-    internal var selectEnabled by mutableStateOf(true)
+    internal var selectButtonEnabled by mutableStateOf(true)
         private set
 
     fun appendLog(message: String) {
@@ -57,7 +56,7 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
     }
 
     fun setSelectEnabled(enabled: Boolean) {
-        selectEnabled = enabled
+        selectButtonEnabled = enabled
     }
 }
 
@@ -103,7 +102,7 @@ private fun NeoArtApp(
     COUITheme(controller = themeController) {
         NeoArtScreen(
             logText = controller.logText,
-            selectEnabled = controller.selectEnabled,
+            selectEnabled = controller.selectButtonEnabled,
             onSelectApk = onSelectApk,
             onOpenSettings = onOpenSettings,
         )
