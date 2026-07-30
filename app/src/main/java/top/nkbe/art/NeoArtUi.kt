@@ -773,28 +773,49 @@ private fun NeoArtBottomBar(
     }
 }
 
+private data class SoNamePresetItem(val title: String, val name: String)
+
+@Composable
+private fun rememberSoNamePresets(context: Context): List<SoNamePresetItem> {
+    return remember(context) {
+        try {
+            val json = context.assets.open("so_name_presets.json").bufferedReader().use { it.readText() }
+            val array = org.json.JSONArray(json)
+            val list = mutableListOf<SoNamePresetItem>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val title = obj.optString("title", "").trim()
+                val name = obj.optString("name", "").trim()
+                if (title.isNotEmpty() && name.isNotEmpty()) {
+                    list.add(SoNamePresetItem(title, name))
+                }
+            }
+            list
+        } catch (_: Exception) {
+            listOf(
+                SoNamePresetItem("Ark默认", "ArkStub"),
+                SoNamePresetItem("腾讯乐固", "tup"),
+                SoNamePresetItem("梆梆安全", "DexHelper"),
+                SoNamePresetItem("爱加密", "exec"),
+                SoNamePresetItem("阿里聚安全", "mobisec")
+            )
+        }
+    }
+}
+
 @Composable
 private fun SoNamePresetDialog(
     onSelectPreset: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val presets = listOf(
-        "ArkStub",
-        "libdexhelper.so",
-        "libsecmain.so",
-        "libjiagu.so",
-        "libshell.so",
-        "libprotect.so",
-        "libbaiduprotect.so",
-        "libtxyu.so",
-        "libns_apkshell.so",
-        "libvmp.so"
-    )
+    val context = LocalContext.current
+    val presets = rememberSoNamePresets(context)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.75f)
                 .padding(16.dp),
             insideMargin = PaddingValues(18.dp)
         ) {
@@ -805,23 +826,51 @@ private fun SoNamePresetDialog(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
+                Text(
+                    text = "包含主流加固厂商特征名称（点击选择）",
+                    color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                    fontSize = 12.sp
+                )
                 Spacer(Modifier.height(12.dp))
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState())
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     presets.forEach { preset ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { onSelectPreset(preset) }
-                                .padding(vertical = 10.dp, horizontal = 8.dp)
+                                .clickable { onSelectPreset(preset.name) }
+                                .padding(vertical = 10.dp, horizontal = 10.dp)
                         ) {
-                            Text(
-                                text = preset,
-                                color = COUITheme.colorScheme.onSurface,
-                                fontSize = 15.sp
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = preset.title,
+                                        color = COUITheme.colorScheme.onSurface,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "SO 文件名: lib${preset.name}.so",
+                                        color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Text(
+                                    text = preset.name,
+                                    color = COUITheme.colorScheme.primary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
