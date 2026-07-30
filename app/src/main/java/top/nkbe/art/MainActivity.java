@@ -553,21 +553,23 @@ public class MainActivity extends ComponentActivity {
         return true;
     }
 
-    private void loadSettingsFlow() {
+    private ArkSettingsData loadSettingsFlow() {
         ArkSettings settings = readArkSettings();
-        ArkSettingsData data = new ArkSettingsData(
-                settings.soName,
-                settings.stubClassName,
-                settings.savePath,
+        if (settings == null) {
+            return new ArkSettingsData();
+        }
+        return new ArkSettingsData(
+                settings.soName != null ? settings.soName : "ArkStub",
+                settings.stubClassName != null ? settings.stubClassName : "com.ark.safe.StubApp",
+                settings.savePath != null ? settings.savePath : "",
                 settings.autoSign,
                 settings.fake360Type,
                 settings.useCustomJks,
-                settings.jksPath,
-                settings.jksStorePass,
-                settings.jksAlias,
-                settings.jksKeyPass
+                settings.jksPath != null ? settings.jksPath : "",
+                settings.jksStorePass != null ? settings.jksStorePass : "",
+                settings.jksAlias != null ? settings.jksAlias : "",
+                settings.jksKeyPass != null ? settings.jksKeyPass : ""
         );
-        uiController.loadSettings(data);
     }
 
     private String handleSaveSettingsFromCompose(ArkSettingsData data) {

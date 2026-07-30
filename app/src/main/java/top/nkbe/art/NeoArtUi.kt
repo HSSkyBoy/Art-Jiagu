@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,17 +117,30 @@ object NeoArtUi {
     fun install(
         activity: ComponentActivity,
         onSelectApk: Runnable,
-        onLoadSettings: Runnable,
+        onLoadSettings: java.util.concurrent.Callable<ArkSettingsData>,
     ): NeoArtUiController {
         val controller = NeoArtUiController()
-        onLoadSettings.run()
+        try {
+            val initial = onLoadSettings.call()
+            if (initial != null) {
+                controller.settingsState = initial
+            }
+        } catch (_: Exception) {}
+
         val content = ComposeView(activity).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 NeoArtApp(
                     controller = controller,
                     onSelectApk = onSelectApk::run,
-                    onLoadSettings = onLoadSettings::run,
+                    onLoadSettings = {
+                        try {
+                            val updated = onLoadSettings.call()
+                            if (updated != null) {
+                                controller.settingsState = updated
+                            }
+                        } catch (_: Exception) {}
+                    },
                 )
             }
         }
@@ -679,41 +693,81 @@ private fun LogsPage(controller: NeoArtUiController) {
 }
 
 /**
- * Bottom Navigation Bar
+ * Liquid Glassmorphic Bottom Navigation Bar
  */
 @Composable
 private fun NeoArtBottomBar(
     selectedTab: Int,
     onSelectTab: (Int) -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .background(COUITheme.colorScheme.surfaceContainer),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
-        val items = listOf("管理", "设置", "日志")
-        items.forEachIndexed { index, label ->
-            val selected = selectedTab == index
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (selected) COUITheme.colorScheme.primary.copy(alpha = 0.15f)
-                        else Color.Transparent
-                    )
-                    .clickable { onSelectTab(index) }
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = label,
-                    color = if (selected) COUITheme.colorScheme.primary else COUITheme.colorScheme.onSurfaceVariantSummary,
-                    fontSize = 16.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        val glassBg = COUITheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
+        val glassBorder = COUITheme.colorScheme.primary.copy(alpha = 0.18f)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(RoundedCornerShape(30.dp))
+                .background(glassBg)
+                .border(
+                    width = 1.dp,
+                    color = glassBorder,
+                    shape = RoundedCornerShape(30.dp)
                 )
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val items = listOf(
+                    Triple(0, "管理", "⚡"),
+                    Triple(1, "设置", "⚙️"),
+                    Triple(2, "日志", "📜")
+                )
+
+                items.forEach { (index, label, icon) ->
+                    val selected = selectedTab == index
+                    val animColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) COUITheme.colorScheme.primary.copy(alpha = 0.22f) else Color.Transparent,
+                        label = "tabBg"
+                    )
+                    val animTextColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) COUITheme.colorScheme.primary else COUITheme.colorScheme.onSurfaceVariantSummary,
+                        label = "tabText"
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(animColor)
+                            .clickable { onSelectTab(index) }
+                            .padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = icon,
+                            fontSize = 16.sp
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = label,
+                            color = animTextColor,
+                            fontSize = 15.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
