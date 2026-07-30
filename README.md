@@ -25,11 +25,6 @@
   - **📜 日誌 (Logs)**：全螢幕 Console 主控台，支援一鍵複製與清空。
 - **液態玻璃懸浮底欄 (Liquid Glassmorphism Navigation Bar)**：磨砂亞克力質感與平滑微動畫。
 
-### 3. 🧩 開源引擎模組化 (`JiaguEngine`)
-- 核心加固引擎完全解耦為獨立模組 `top.nkbe.art.engine.JiaguEngine`。
-- 可作為 **Git Submodule (子模組)** 直接引入至 **NPatch** 等修改工具中。
-- 詳細引入方法請參閱 [SUBMODULE_GUIDE.md](SUBMODULE_GUIDE.md)。
-
 ---
 
 ## 🚀 快速開始与构建 (Building)
@@ -62,24 +57,23 @@
 ```text
 Art-Jiagu/
 ├── app/src/main/
-│   ├── cpp/                        # Native C++ 殼與 Syscall 防護引擎
-│   │   ├── ApkSignatureVerifier.cpp # 直接 Syscall APK v2/v3 簽名區塊解析器
-│   │   ├── ArkDexLoader.cpp         # 記憶體 DEX 加密解密與 InMemoryDexClassLoader
-│   │   ├── ArkEnvGuard.cpp          # 環境安全檢測 (Xposed / LSPosed / Hook 檢測)
-│   │   └── ArkStub.cpp              # JNI 動態註冊與殼程序初始化
-│   ├── java/top/nkbe/art/
-│   │   ├── engine/                 # NPatch 可用之獨立加固引擎模組
-│   │   │   ├── JiaguEngine.java     # 線程安全、非阻塞式加固執行器
-│   │   │   ├── JiaguOptions.java    # 加固參數 (預設關閉符合按需策略)
-│   │   │   └── JiaguListener.java   # 日誌與進度監聽介面
-│   │   ├── NeoArtUi.kt             # Jetpack Compose 3 頁式與液態玻璃底欄 UI
-│   │   └── MainActivity.java       # 主入口與 Activity 相容層
-│   └── assets/                     # 預設 SO 廠商資料與偽 360 特徵
-└── SUBMODULE_GUIDE.md              # NPatch 子模組引入指南
+   ├── cpp/                        # Native C++ 殼與 Syscall 防護引擎
+   │   ├── ApkSignatureVerifier.cpp # 直接 Syscall APK v2/v3 簽名區塊解析器
+   │   ├── ArkDexLoader.cpp         # 記憶體 DEX 加密解密與 InMemoryDexClassLoader
+   │   ├── ArkEnvGuard.cpp          # 環境安全檢測 (Xposed / LSPosed / Hook 檢測)
+   │   └── ArkStub.cpp              # JNI 動態註冊與殼程序初始化
+   ├── java/top/nkbe/art/
+   │   ├── engine/                 # NPatch 可用之獨立加固引擎模組
+   │   │   ├── JiaguEngine.java     # 線程安全、非阻塞式加固執行器
+   │   │   ├── JiaguOptions.java    # 加固參數 (預設關閉符合按需策略)
+   │   │   └── JiaguListener.java   # 日誌與進度監聽介面
+   │   ├── NeoArtUi.kt             # Jetpack Compose 3 頁式與液態玻璃底欄 UI
+   │   └── MainActivity.java       # 主入口與 Activity 相容層
+   └── assets/                     # 預設 SO 廠商資料與偽 360 特徵
 ```
 
 ---
 
 ## 📄 授權協定 (License)
 
-本项目基于 [MIT License](LICENSE) 开源发布。欢迎提交 PR 和 Issue！
+本项目基于 [Apache-2.0]([LICENSE](https://www.apache.org/licenses/LICENSE-2.0.txt)) 开源发布。欢迎提交 PR 和 Issue！
