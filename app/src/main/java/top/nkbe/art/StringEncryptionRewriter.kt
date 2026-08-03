@@ -23,9 +23,16 @@ import java.io.FileOutputStream
 
 /** Rewrites conservative business-string candidates to a shell-native decoder call. */
 object StringEncryptionRewriter {
-    data class Result(val rewrittenStrings: Int, val encryptedStringPool: ByteArray)
+    data class Result(val rewrittenStrings: Int)
 
-    fun rewrite(inputDex: File, outputDex: File, stubClassName: String): Result {
+    class StringPoolBuilder {
+        private val indexes = LinkedHashMap<String, Int>()
+        fun indexOf(value: String): Int = indexes.getOrPut(value) { indexes.size }
+        fun buildEncryptedStringPool(): ByteArray = buildEncryptedStringPool(indexes.keys.toList())
+        val isEmpty: Boolean get() = indexes.isEmpty()
+    }
+
+    fun rewrite(inputDex: File, outputDex: File, stubClassName: String, stringPool: StringPoolBuilder): Result {
         val decoderType = "L${stubClassName.replace('.', '/')};"
         val decoder = ImmutableMethodReference(
             decoderType,
@@ -34,19 +41,18 @@ object StringEncryptionRewriter {
             "Ljava/lang/String;",
         )
         var rewrittenStrings = 0
-        val stringIndexes = LinkedHashMap<String, Int>()
         val input = DexFileFactory.loadDexFile(inputDex, Opcodes.getDefault())
         val pool = DexPool(Opcodes.getDefault())
         input.classes.forEach { classDef ->
             val rewritten = rewriteClass(classDef, decoder) { value ->
                 rewrittenStrings++
-                stringIndexes.getOrPut(value) { stringIndexes.size }
+                stringPool.indexOf(value)
             }
             pool.internClass(rewritten)
         }
         outputDex.parentFile?.mkdirs()
         pool.writeTo(FileDataStore(outputDex))
-        return Result(rewrittenStrings, buildEncryptedStringPool(stringIndexes.keys.toList()))
+        return Result(rewrittenStrings)
     }
 
     private fun rewriteClass(

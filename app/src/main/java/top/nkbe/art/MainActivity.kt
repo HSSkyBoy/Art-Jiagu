@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
     )
 
     private data class SoNamePreset(val feature: String, val soName: String)
+    private data class StringEncryptionInput(val apk: File, val poolFile: File, val rewrittenStrings: Int)
 
     // ── Native methods ──
     private external fun buildEncryptedBlock(plainData: ByteArray?): ByteArray?
@@ -500,6 +501,9 @@ class MainActivity : ComponentActivity() {
                     copiedApk,
                     settings.rootServiceCompatibility,
                 )
+                val stringEncryptionInput = if (settings.stringEncryption) {
+                    prepareStringEncryptionInput(copiedApk, workDir, preservedRootDexEntries)
+                } else null
 
                 appendLogOnUi("开始生成壳 DEX")
                 val useApplicationEntry = settings.emulatorCompatibility || readTargetMinSdk(copiedApk) < 28
@@ -511,7 +515,7 @@ class MainActivity : ComponentActivity() {
                 val signHash64 = getSignHash64ForShell()
                 appendLogOnUi("开始加密原始 DEX")
                 buildEncryptedShellDex(
-                    copiedApk, shellDex, appName, signHash64,
+                    stringEncryptionInput?.apk ?: copiedApk, shellDex, appName, signHash64,
                     preservedRootDexEntries.toTypedArray(),
                 )
                 appendLogOnUi("加密完成：" + shellDex.absolutePath + "（" + shellDex.length() + " 字节）")
@@ -524,7 +528,7 @@ class MainActivity : ComponentActivity() {
                 appendLogOnUi("Manifest 改写完成：${newManifest.absolutePath}（${newManifest.length()} 字节）")
                 appendLogOnUi("开始重建加固 APK")
                 var protectedApk = rebuildProtectedApk(
-                    copiedApk, workDir, originalApkName, preservedRootDexEntries,
+                    copiedApk, workDir, originalApkName, preservedRootDexEntries, stringEncryptionInput?.poolFile,
                 )
                 appendLogOnUi("重建 APK 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
                 verifyRootServiceCompatibilityOutput(
@@ -654,6 +658,47 @@ class MainActivity : ComponentActivity() {
                 result.rootServiceDexEntries.joinToString(),
         )
         return result.rootServiceDexEntries
+    }
+
+    @Throws(Exception::class)
+    private fun prepareStringEncryptionInput(
+        sourceApk: File,
+        workDir: File,
+        preservedDexEntries: List<String>,
+    ): StringEncryptionInput? {
+        appendLogOnUi("已开启字符串加密，开始生成 DEX 重写输入")
+        val inputApk = File(workDir, "string_encryption_input.apk")
+        val dexDir = File(workDir, "string_encryption_dex")
+        deleteFileQuietly(inputApk); deleteDirQuietly(dexDir); dexDir.mkdirs()
+        val pool = StringEncryptionRewriter.StringPoolBuilder()
+        var rewritten = 0
+        ZipFile(sourceApk).use { zip ->
+            ZipOutputStream(FileOutputStream(inputApk)).use { output ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val name = entry.name
+                    if (name !in preservedDexEntries && name.matches(Regex("classes([2-9][0-9]*)?\\.dex"))) {
+                        val sourceDex = File(dexDir, "$name.in")
+                        val rewrittenDex = File(dexDir, name)
+                        zip.getInputStream(entry).use { input -> FileOutputStream(sourceDex).use { input.copyTo(it) } }
+                        val result = StringEncryptionRewriter.rewrite(sourceDex, rewrittenDex, validStubClassName, pool)
+                        rewritten += result.rewrittenStrings
+                        FileInputStream(rewrittenDex).use { addZipEntryStream(output, name, it, null) }
+                    } else if (entry.isDirectory) addDirectoryZipEntry(output, name, entry)
+                    else zip.getInputStream(entry).use { addZipEntryStream(output, name, it, entry) }
+                }
+            }
+        }
+        if (rewritten == 0 || pool.isEmpty) {
+            deleteFileQuietly(inputApk)
+            appendLogOnUi("未找到可安全加密的字符串，继续使用原始 DEX")
+            return null
+        }
+        val poolFile = File(workDir, "top_strings.bin")
+        StringEncryptionRewriter.writeEncryptedStringPool(poolFile, pool.buildEncryptedStringPool())
+        appendLogOnUi("字符串重写完成：$rewritten 条，字串池：${poolFile.length()} 字节")
+        return StringEncryptionInput(inputApk, poolFile, rewritten)
     }
     @Throws(Exception::class)
     private fun verifyRootServiceCompatibilityOutput(
@@ -1073,6 +1118,7 @@ class MainActivity : ComponentActivity() {
         workDir: File,
         originalApkName: String?,
         preservedRootDexEntries: List<String>,
+        stringPoolFile: File?,
     ): File {
         appendLogOnUi("开始重打包 APK")
 
@@ -1099,6 +1145,7 @@ class MainActivity : ComponentActivity() {
 
         skipNames.add("AndroidManifest.xml")
         if (fake360AssetName != null) skipNames.add(fake360AssetName)
+        if (stringPoolFile != null) skipNames.add("assets/top_strings.bin")
         if (libDir.exists() && libDir.isDirectory) collectLibSkipNames(libDir, libDir, skipNames)
         appendLogOnUi("重打包时跳过条目数：" + skipNames.size)
 
@@ -1145,6 +1192,11 @@ class MainActivity : ComponentActivity() {
 
                 if (libDir.exists() && libDir.isDirectory) {
                     addLibDirToZipStream(zos, libDir, libDir)
+                }
+
+                if (stringPoolFile != null) {
+                    FileInputStream(stringPoolFile).use { addZipEntryStream(zos, "assets/top_strings.bin", it, null) }
+                    appendLogOnUi("已写入加密字符串池")
                 }
 
                 if (fake360AssetName != null) {
