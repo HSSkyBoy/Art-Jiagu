@@ -76,6 +76,7 @@ data class ArkSettingsData(
     val stubClassName: String = "com.ark.safe.StubApp",
     val savePath: String = "",
     val autoSign: Boolean = false,
+    val rootServiceCompatibility: Boolean = false,
     val shizukuSilentInstall: Boolean = false,
     val fake360Type: Int = 0,
     val useCustomJks: Boolean = false,
@@ -548,6 +549,7 @@ private fun ManagementPage(
                     StrategyLine("壳 SO", s.soName, s.soName.isNotBlank())
                     StrategyLine("壳类名", s.stubClassName, s.stubClassName.isNotBlank())
                     StrategyLine("自动签名", if (s.autoSign) "开启" else "关闭", s.autoSign)
+                    StrategyLine("Root 应用", if (s.rootServiceCompatibility) "兼容模式" else "全量加密", s.rootServiceCompatibility)
                     StrategyLine("Shizuku安装", if (s.shizukuSilentInstall) "静默安装" else "关闭", s.shizukuSilentInstall)
                     StrategyLine("偽360", getFake360Label(s.fake360Type), s.fake360Type > 0)
                     StrategyLine("证书", if (s.useCustomJks) "自订 JKS" else "内置 npatch.key", true)
@@ -687,6 +689,23 @@ private fun SettingsPage(controller: NeoArtUiController, onOpenPreset: () -> Uni
                 } else {
                     Text(
                         "需先开启自动签名，才能使用修补后静默安装。",
+                        color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+
+            SectionCard("Root 应用兼容") {
+                ToggleRow(
+                    title = "兼容 libsu RootService",
+                    description = "仅在目标 APK 使用 libsu RootService 时开启。会保留 RootService 所在 DEX 未加密，供 root 子进程直接加载。",
+                    checked = s.rootServiceCompatibility,
+                    onToggle = { v -> s = s.copy(rootServiceCompatibility = v) },
+                )
+                if (s.rootServiceCompatibility) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "兼容性优先：被保留的 DEX 可被静态读取；未发现 libsu RootService 时不会降低保护强度。",
                         color = COUITheme.colorScheme.onSurfaceVariantSummary,
                         fontSize = 12.sp,
                     )

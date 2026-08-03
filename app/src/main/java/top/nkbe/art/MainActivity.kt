@@ -91,6 +91,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName: String,
         var savePath: String,
         var autoSign: Boolean,
+        var rootServiceCompatibility: Boolean,
         var shizukuSilentInstall: Boolean,
         var fake360Type: Int,
         var useCustomJks: Boolean,
@@ -113,6 +114,7 @@ class MainActivity : ComponentActivity() {
         shellDexFile: File,
         realApplicationName: String,
         signHash64: ByteArray?,
+        preservedDexEntries: Array<String>,
     )
 
     // ── Lifecycle ──
@@ -262,6 +264,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = sp.getString(KEY_STUB_CLASS_NAME, DEFAULT_STUB_CLASS_NAME) ?: DEFAULT_STUB_CLASS_NAME
         var savePath = sp.getString(KEY_SAVE_PATH, defaultSavePath) ?: defaultSavePath
         val autoSign = sp.getBoolean(KEY_AUTO_SIGN, false)
+        val rootServiceCompatibility = sp.getBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, false)
         val shizukuSilentInstall = sp.getBoolean(KEY_SHIZUKU_SILENT_INSTALL, false)
         var fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF)
         if (fake360Type !in FAKE_360_OFF..FAKE_360_ENTERPRISE) fake360Type = FAKE_360_OFF
@@ -279,13 +282,14 @@ class MainActivity : ComponentActivity() {
         if (savePath.isBlank()) savePath = defaultSavePath
 
         return ArkSettings(
-            soName, stubClassName, savePath, autoSign, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, rootServiceCompatibility, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
     }
 
     private fun saveArkSettings(
         soName: String, stubClassName: String, savePath: String, autoSign: Boolean,
+        rootServiceCompatibility: Boolean,
         shizukuSilentInstall: Boolean,
         fake360Type: Int, useCustomJks: Boolean, jksPath: String,
         jksStorePass: String, jksAlias: String, jksKeyPass: String,
@@ -295,6 +299,7 @@ class MainActivity : ComponentActivity() {
             .putString(KEY_STUB_CLASS_NAME, stubClassName)
             .putString(KEY_SAVE_PATH, savePath)
             .putBoolean(KEY_AUTO_SIGN, autoSign)
+            .putBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, rootServiceCompatibility)
             .putBoolean(KEY_SHIZUKU_SILENT_INSTALL, shizukuSilentInstall)
             .putInt(KEY_FAKE_360_TYPE, fake360Type)
             .putBoolean(KEY_USE_CUSTOM_JKS, useCustomJks)
@@ -312,6 +317,7 @@ class MainActivity : ComponentActivity() {
             stubClassName = s.stubClassName,
             savePath = s.savePath,
             autoSign = s.autoSign,
+            rootServiceCompatibility = s.rootServiceCompatibility,
             shizukuSilentInstall = s.shizukuSilentInstall,
             fake360Type = s.fake360Type,
             useCustomJks = s.useCustomJks,
@@ -327,6 +333,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = data.stubClassName.trim()
         val savePath = data.savePath.trim()
         val autoSign = data.autoSign
+        val rootServiceCompatibility = data.rootServiceCompatibility
         val shizukuSilentInstall = data.shizukuSilentInstall
         val fake360Type = data.fake360Type
         if (fake360Type != FAKE_360_OFF) stubClassName = FAKE_360_STUB_CLASS_NAME
@@ -344,7 +351,7 @@ class MainActivity : ComponentActivity() {
         if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) return "JKS 证书配置无效或未填完整"
 
         saveArkSettings(
-            soName, stubClassName, savePath, autoSign, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, rootServiceCompatibility, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
         Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
@@ -475,13 +482,21 @@ class MainActivity : ComponentActivity() {
 
                 val appName = readApplicationName(copiedApk)
                 appendLogOnUi("原始入口：" + appName)
+                val settings = readArkSettings()
+                val preservedRootDexEntries = resolveRootServiceCompatibilityDexes(
+                    copiedApk,
+                    settings.rootServiceCompatibility,
+                )
 
                 appendLogOnUi("开始生成壳 DEX")
                 val shellDex = generateShellDex(workDir)
                 appendLogOnUi("壳 DEX 生成完成：${shellDex.absolutePath}（${shellDex.length()} 字节）")
                 val signHash64 = getSignHash64ForShell()
                 appendLogOnUi("开始加密原始 DEX")
-                buildEncryptedShellDex(copiedApk, shellDex, appName, signHash64)
+                buildEncryptedShellDex(
+                    copiedApk, shellDex, appName, signHash64,
+                    preservedRootDexEntries.toTypedArray(),
+                )
                 appendLogOnUi("加密完成：" + shellDex.absolutePath + "（" + shellDex.length() + " 字节）")
 
                 appendLogOnUi("开始提取壳 SO")
@@ -491,14 +506,15 @@ class MainActivity : ComponentActivity() {
                 val newManifest = modifyAndroidManifest(copiedApk, workDir)
                 appendLogOnUi("Manifest 改写完成：${newManifest.absolutePath}（${newManifest.length()} 字节）")
                 appendLogOnUi("开始重建加固 APK")
-                var protectedApk = rebuildProtectedApk(copiedApk, workDir, originalApkName)
+                var protectedApk = rebuildProtectedApk(
+                    copiedApk, workDir, originalApkName, preservedRootDexEntries,
+                )
                 appendLogOnUi("重建 APK 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
 
                 appendLogOnUi("开始进行 ZIPALIGN")
                 protectedApk = zipAlignApk(protectedApk)
                 appendLogOnUi("ZIPALIGN 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
 
-                val settings = readArkSettings()
                 if (settings.autoSign) {
                     appendLogOnUi("检测到已开启自动签名")
                     protectedApk = if (settings.useCustomJks) {
@@ -594,6 +610,30 @@ class MainActivity : ComponentActivity() {
     }
 
     // ── Shell DEX generation ──
+    private fun resolveRootServiceCompatibilityDexes(
+        apkFile: File,
+        enabled: Boolean,
+    ): List<String> {
+        if (!enabled) return emptyList()
+
+        appendLogOnUi("已开启 libsu RootService 兼容模式，正在扫描 DEX")
+        val result = RootServiceDexDetector.scan(apkFile)
+        if (result.rootServiceDexEntries.isEmpty()) {
+            appendLogOnUi("未发现 libsu RootService，继续全量加密")
+            return emptyList()
+        }
+        if (result.rootServiceDexEntries.size == result.allDexEntries.size) {
+            appendLogOnUi("RootService 覆盖全部 DEX，无法安全保留兼容载荷，继续全量加密")
+            return emptyList()
+        }
+
+        appendLogOnUi(
+            "已保留 libsu RootService 所在 DEX（未加密）：" +
+                result.rootServiceDexEntries.joinToString(),
+        )
+        return result.rootServiceDexEntries
+    }
+
     @Throws(Exception::class)
     private fun generateShellDex(outputDir: File): File {
         if (!outputDir.exists() && !outputDir.mkdirs())
@@ -887,7 +927,12 @@ class MainActivity : ComponentActivity() {
 
     // ── Repackaging ──
     @Throws(Exception::class)
-    private fun rebuildProtectedApk(apkFile: File, workDir: File, originalApkName: String?): File {
+    private fun rebuildProtectedApk(
+        apkFile: File,
+        workDir: File,
+        originalApkName: String?,
+        preservedRootDexEntries: List<String>,
+    ): File {
         appendLogOnUi("开始重打包 APK")
 
         val newClassesDex = File(workDir, "classes.dex")
@@ -940,6 +985,17 @@ class MainActivity : ComponentActivity() {
                     addZipEntryStream(zos, "classes.dex", input, null)
                 }
                 appendLogOnUi("已写入新 classes.dex")
+
+                var outputDexIndex = 2
+                for (sourceDexName in preservedRootDexEntries) {
+                    val sourceDex = zipFile.getEntry(sourceDexName)
+                        ?: throw RuntimeException("RootService 兼容 DEX 不存在：$sourceDexName")
+                    val outputDexName = "classes${outputDexIndex++}.dex"
+                    zipFile.getInputStream(sourceDex).use { input ->
+                        addZipEntryStream(zos, outputDexName, input, sourceDex)
+                    }
+                    appendLogOnUi("已写入 RootService 兼容 DEX：$sourceDexName -> $outputDexName")
+                }
 
                 FileInputStream(newManifest).use { input ->
                     addZipEntryStream(zos, "AndroidManifest.xml", input, null)
@@ -1313,6 +1369,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_SO_NAME = "so_name"
         private const val KEY_SAVE_PATH = "save_path"
         private const val KEY_AUTO_SIGN = "auto_sign"
+        private const val KEY_ROOT_SERVICE_COMPATIBILITY = "root_service_compatibility"
         private const val KEY_SHIZUKU_SILENT_INSTALL = "shizuku_silent_install"
         private const val DEFAULT_SO_NAME = "ArkStub"
         private const val KEY_USE_CUSTOM_JKS = "use_custom_jks"

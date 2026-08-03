@@ -1,6 +1,8 @@
 #include "ArkTool.h"
 
 #include <jni.h>
+#include <string>
+#include <unordered_set>
 #include <vector>
 #include <cstdlib>
 #include <cstring>
@@ -42,6 +44,29 @@ static bool readOptionalByteArray(
 
     return !env->ExceptionCheck();
 }
+
+static bool readStringSet(
+        JNIEnv *env,
+        jobjectArray array,
+        std::unordered_set<std::string> &out
+) {
+    out.clear();
+    if (array == nullptr) return true;
+
+    const jsize count = env->GetArrayLength(array);
+    for (jsize i = 0; i < count; ++i) {
+        auto value = static_cast<jstring>(env->GetObjectArrayElement(array, i));
+        if (env->ExceptionCheck()) return false;
+        if (value == nullptr) continue;
+
+        const char *chars = env->GetStringUTFChars(value, nullptr);
+        if (chars == nullptr) return false;
+        out.emplace(chars);
+        env->ReleaseStringUTFChars(value, chars);
+    }
+    return !env->ExceptionCheck();
+}
+
 static jbyteArray makeByteArray(JNIEnv *env, const unsigned char *data, int len) {
     if (data == nullptr || len < 0) {
         return nullptr;
@@ -594,7 +619,8 @@ static void native_buildEncryptedShellDex(
         jobject apkFile,
         jobject shellDexFile,
         jstring realApplicationName,
-        jbyteArray signHash64
+        jbyteArray signHash64,
+        jobjectArray preservedDexEntries
 ) {
     if (apkFile == nullptr || shellDexFile == nullptr || realApplicationName == nullptr) {
         throwRuntimeException(env, "参数为空");
@@ -605,6 +631,12 @@ static void native_buildEncryptedShellDex(
 
     if (!readOptionalByteArray(env, signHash64, signKey)) {
         throwRuntimeException(env, "签名密钥必须为空或64字节");
+        return;
+    }
+
+    std::unordered_set<std::string> preservedDexEntrySet;
+    if (!readStringSet(env, preservedDexEntries, preservedDexEntrySet)) {
+        throwRuntimeException(env, "读取 RootService 兼容 DEX 失败");
         return;
     }
 
@@ -687,6 +719,13 @@ static void native_buildEncryptedShellDex(
 
         if (entry == nullptr) {
             break;
+        }
+
+        if (preservedDexEntrySet.find(dexName) != preservedDexEntrySet.end()) {
+            char logText[160];
+            snprintf(logText, sizeof(logText), "保留未加密 RootService 兼容 DEX：%s", dexName);
+            appendLogOnUiNative(env, thiz, logText);
+            continue;
         }
 
         jobject inputStream = env->CallObjectMethod(zipFile, midGetInputStream, entry);
@@ -832,7 +871,7 @@ static JNINativeMethod gMethods[] = {
         },
         {
                 const_cast<char *>("buildEncryptedShellDex"),
-                const_cast<char *>("(Ljava/io/File;Ljava/io/File;Ljava/lang/String;[B)V"),
+                const_cast<char *>("(Ljava/io/File;Ljava/io/File;Ljava/lang/String;[B[Ljava/lang/String;)V"),
                 reinterpret_cast<void *>(native_buildEncryptedShellDex)
         },
 };
