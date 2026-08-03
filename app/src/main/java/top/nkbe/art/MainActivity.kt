@@ -792,7 +792,7 @@ class MainActivity : ComponentActivity() {
 
         val decodeStringMethod = ImmutableMethod(
             stubClass, "decodeString",
-            listOf(ImmutableMethodParameter(stringClass, emptySet(), null)), stringClass,
+            listOf(ImmutableMethodParameter("I", emptySet(), null)), stringClass,
             AccessFlags.PUBLIC.value or AccessFlags.STATIC.value or AccessFlags.NATIVE.value,
             emptySet(), null, null,
         )
