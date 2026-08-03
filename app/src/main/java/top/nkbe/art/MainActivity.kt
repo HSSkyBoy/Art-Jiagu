@@ -521,6 +521,11 @@ class MainActivity : ComponentActivity() {
                     copiedApk, workDir, originalApkName, preservedRootDexEntries,
                 )
                 appendLogOnUi("重建 APK 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
+                verifyRootServiceCompatibilityOutput(
+                    copiedApk,
+                    protectedApk,
+                    preservedRootDexEntries,
+                )
 
                 appendLogOnUi("开始进行 ZIPALIGN")
                 protectedApk = zipAlignApk(protectedApk)
@@ -643,6 +648,52 @@ class MainActivity : ComponentActivity() {
                 result.rootServiceDexEntries.joinToString(),
         )
         return result.rootServiceDexEntries
+    }
+    @Throws(Exception::class)
+    private fun verifyRootServiceCompatibilityOutput(
+        sourceApk: File,
+        protectedApk: File,
+        preservedDexEntries: List<String>,
+    ) {
+        if (preservedDexEntries.isEmpty()) return
+
+        ZipFile(sourceApk).use { sourceZip ->
+            ZipFile(protectedApk).use { protectedZip ->
+                preservedDexEntries.forEachIndexed { index, sourceDexName ->
+                    val outputDexName = "classes${index + 2}.dex"
+                    val sourceEntry = sourceZip.getEntry(sourceDexName)
+                        ?: throw RuntimeException("RootService 原始 DEX 不存在：$sourceDexName")
+                    val outputEntry = protectedZip.getEntry(outputDexName)
+                        ?: throw RuntimeException("RootService 兼容 DEX 未写入输出 APK：$outputDexName")
+
+                    val matches = sourceZip.getInputStream(sourceEntry).use { sourceInput ->
+                        protectedZip.getInputStream(outputEntry).use { outputInput ->
+                            streamsHaveSameBytes(sourceInput, outputInput)
+                        }
+                    }
+                    if (!matches) {
+                        throw RuntimeException(
+                            "RootService 兼容 DEX 内容不一致：$sourceDexName -> $outputDexName",
+                        )
+                    }
+                    appendLogOnUi("已验证 RootService 兼容 DEX：$sourceDexName -> $outputDexName")
+                }
+            }
+        }
+    }
+
+    private fun streamsHaveSameBytes(first: InputStream, second: InputStream): Boolean {
+        val firstBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        val secondBuffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val firstCount = first.read(firstBuffer)
+            val secondCount = second.read(secondBuffer)
+            if (firstCount != secondCount) return false
+            if (firstCount == -1) return true
+            for (index in 0 until firstCount) {
+                if (firstBuffer[index] != secondBuffer[index]) return false
+            }
+        }
     }
 
     @Throws(Exception::class)
