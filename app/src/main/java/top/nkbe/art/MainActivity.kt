@@ -3,6 +3,7 @@ package top.nkbe.art
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -43,6 +44,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.InputStreamReader
 import java.util.Locale
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -53,6 +55,7 @@ import javax.xml.transform.OutputKeys
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
+import rikka.shizuku.Shizuku
 
 class MainActivity : ComponentActivity() {
 
@@ -61,6 +64,26 @@ class MainActivity : ComponentActivity() {
     private var isPermissionDialogShowing = false
     private var hasInitMain = false
     private lateinit var soNamePresets: Array<SoNamePreset>
+    private val shizukuBinderReceivedListener = Shizuku.OnBinderReceivedListener {
+        appendLogOnUi("Shizuku 服务已连接")
+        refreshShizukuStatus()
+    }
+    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
+        appendLogOnUi("Shizuku 服务已断开")
+        refreshShizukuStatus()
+    }
+    private val shizukuPermissionResultListener =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode != REQ_SHIZUKU_PERMISSION) return@OnRequestPermissionResultListener
+            if (grantResult == PERMISSION_GRANTED) {
+                appendLogOnUi("Shizuku 授权成功")
+                uiController.showSnackbar("Shizuku 已授权", StatusColor.ACTIVE)
+            } else {
+                appendLogOnUi("Shizuku 授权被拒绝")
+                uiController.showSnackbar("Shizuku 授权失败", StatusColor.ERROR)
+            }
+            refreshShizukuStatus()
+        }
 
     // ── Inner types ──
     private data class ArkSettings(
@@ -68,6 +91,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName: String,
         var savePath: String,
         var autoSign: Boolean,
+        var shizukuSilentInstall: Boolean,
         var fake360Type: Int,
         var useCustomJks: Boolean,
         var jksPath: String,
@@ -102,9 +126,21 @@ class MainActivity : ComponentActivity() {
             java.util.concurrent.Callable { loadSettingsFlow() },
         )
         uiController.onSaveSettingsHandler = { handleSaveSettingsFromCompose(it) }
+        uiController.onRequestShizukuAuthHandler = { requestShizukuAuthorization() }
+        Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedListener)
+        Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionResultListener)
+        refreshShizukuStatus()
 
         checkPermissionOrShowDialog()
         soNamePresets = loadSoNamePresets()
+    }
+
+    override fun onDestroy() {
+        Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
+        Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
+        Shizuku.removeRequestPermissionResultListener(shizukuPermissionResultListener)
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -226,6 +262,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = sp.getString(KEY_STUB_CLASS_NAME, DEFAULT_STUB_CLASS_NAME) ?: DEFAULT_STUB_CLASS_NAME
         var savePath = sp.getString(KEY_SAVE_PATH, defaultSavePath) ?: defaultSavePath
         val autoSign = sp.getBoolean(KEY_AUTO_SIGN, false)
+        val shizukuSilentInstall = sp.getBoolean(KEY_SHIZUKU_SILENT_INSTALL, false)
         var fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF)
         if (fake360Type !in FAKE_360_OFF..FAKE_360_ENTERPRISE) fake360Type = FAKE_360_OFF
         val useCustomJks = sp.getBoolean(KEY_USE_CUSTOM_JKS, false)
@@ -241,11 +278,15 @@ class MainActivity : ComponentActivity() {
         }
         if (savePath.isBlank()) savePath = defaultSavePath
 
-        return ArkSettings(soName, stubClassName, savePath, autoSign, fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass)
+        return ArkSettings(
+            soName, stubClassName, savePath, autoSign, shizukuSilentInstall,
+            fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
+        )
     }
 
     private fun saveArkSettings(
         soName: String, stubClassName: String, savePath: String, autoSign: Boolean,
+        shizukuSilentInstall: Boolean,
         fake360Type: Int, useCustomJks: Boolean, jksPath: String,
         jksStorePass: String, jksAlias: String, jksKeyPass: String,
     ) {
@@ -254,6 +295,7 @@ class MainActivity : ComponentActivity() {
             .putString(KEY_STUB_CLASS_NAME, stubClassName)
             .putString(KEY_SAVE_PATH, savePath)
             .putBoolean(KEY_AUTO_SIGN, autoSign)
+            .putBoolean(KEY_SHIZUKU_SILENT_INSTALL, shizukuSilentInstall)
             .putInt(KEY_FAKE_360_TYPE, fake360Type)
             .putBoolean(KEY_USE_CUSTOM_JKS, useCustomJks)
             .putString(KEY_JKS_PATH, jksPath)
@@ -270,6 +312,7 @@ class MainActivity : ComponentActivity() {
             stubClassName = s.stubClassName,
             savePath = s.savePath,
             autoSign = s.autoSign,
+            shizukuSilentInstall = s.shizukuSilentInstall,
             fake360Type = s.fake360Type,
             useCustomJks = s.useCustomJks,
             jksPath = s.jksPath,
@@ -284,6 +327,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = data.stubClassName.trim()
         val savePath = data.savePath.trim()
         val autoSign = data.autoSign
+        val shizukuSilentInstall = data.shizukuSilentInstall
         val fake360Type = data.fake360Type
         if (fake360Type != FAKE_360_OFF) stubClassName = FAKE_360_STUB_CLASS_NAME
         val useCustomJks = data.useCustomJks
@@ -296,9 +340,13 @@ class MainActivity : ComponentActivity() {
         if (!isValidStubClassName(stubClassName)) return "自定义壳类名不合法。需包含包名与类名（如 top.nkbe.safe.StubApp），不能以数字开头。"
         if (ShellClassNamePolicy.containsArt(stubClassName)) return "壳类名不能包含 art，请改用 nkbe 或其他名称"
         if (!isValidSavePath(savePath)) return "文件保存路径无效或不可写"
+        if (shizukuSilentInstall && !autoSign) return "Shizuku 静默安装需要先开启自动签名"
         if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) return "JKS 证书配置无效或未填完整"
 
-        saveArkSettings(soName, stubClassName, savePath, autoSign, fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass)
+        saveArkSettings(
+            soName, stubClassName, savePath, autoSign, shizukuSilentInstall,
+            fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
+        )
         Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
         return null
     }
@@ -478,17 +526,31 @@ class MainActivity : ComponentActivity() {
                 appendLogOnUi("----------->>>加固完成<<<-----------")
 
                 val finalApk = protectedApk
-                runOnUiThread {
-                    uiController.showDialog(
-                        NeoArtDialogState(
-                            title = "加固完成",
-                            message = "APK 已加固完成，是否立即安装？",
-                            confirmText = "安装",
-                            dismissText = "取消",
-                            cancelable = false,
-                            onConfirm = { installApk(finalApk) },
+                if (settings.autoSign && settings.shizukuSilentInstall) {
+                    appendLogOnUi("检测到已开启 Shizuku 静默安装")
+                    val installResult = installApkSilentlyWithShizuku(finalApk)
+                    if (installResult.isSuccess) {
+                        appendLogOnUi("Shizuku 静默安装成功：" + installResult.getOrDefault("Success"))
+                        runOnUiThread {
+                            uiController.showDialog(
+                                NeoArtDialogState(
+                                    title = "加固并安装完成",
+                                    message = "修补后的 APK 已完成静默安装。",
+                                    confirmText = "知道了",
+                                    cancelable = false,
+                                    onConfirm = {},
+                                )
+                            )
+                        }
+                    } else {
+                        appendLogOnUi(
+                            "Shizuku 静默安装失败，回退普通安装：" +
+                                (installResult.exceptionOrNull()?.message ?: "未知错误")
                         )
-                    )
+                        runOnUiThread { showInstallDialog(finalApk) }
+                    }
+                } else {
+                    runOnUiThread { showInstallDialog(finalApk) }
                 }
             } catch (e: Exception) {
                 appendLogOnUi("处理失败：" + e.message)
@@ -1036,6 +1098,19 @@ class MainActivity : ComponentActivity() {
         doInstallApk(apkFile)
     }
 
+    private fun showInstallDialog(apkFile: File) {
+        uiController.showDialog(
+            NeoArtDialogState(
+                title = "加固完成",
+                message = "APK 已加固完成，是否立即安装？",
+                confirmText = "安装",
+                dismissText = "取消",
+                cancelable = false,
+                onConfirm = { installApk(apkFile) },
+            )
+        )
+    }
+
     private fun doInstallApk(apkFile: File) {
         val intent = Intent(Intent.ACTION_VIEW).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         val apkUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -1047,6 +1122,79 @@ class MainActivity : ComponentActivity() {
         intent.setDataAndType(apkUri, "application/vnd.android.package-archive")
         startActivity(intent)
     }
+
+    private fun refreshShizukuStatus() {
+        val (text, granted) = try {
+            when {
+                !Shizuku.pingBinder() -> "未连接或未启动" to false
+                Shizuku.isPreV11() -> "版本过低，不支持授权" to false
+                Shizuku.checkSelfPermission() == PERMISSION_GRANTED -> "已授权，可静默安装" to true
+                else -> "已连接，等待授权" to false
+            }
+        } catch (_: Throwable) {
+            "不可用" to false
+        }
+        runOnUiThread { uiController.updateShizukuStatus(text, granted) }
+    }
+
+    private fun requestShizukuAuthorization(): String? {
+        return try {
+            if (!Shizuku.pingBinder()) {
+                appendLogOnUi("Shizuku 未连接，请先安装并启动 Shizuku")
+                refreshShizukuStatus()
+                "请先安装并启动 Shizuku"
+            } else if (Shizuku.isPreV11()) {
+                appendLogOnUi("Shizuku 版本过低，不支持当前授权流程")
+                "Shizuku 版本过低"
+            } else if (Shizuku.checkSelfPermission() == PERMISSION_GRANTED) {
+                appendLogOnUi("Shizuku 已授权")
+                refreshShizukuStatus()
+                "Shizuku 已授权"
+            } else if (Shizuku.shouldShowRequestPermissionRationale()) {
+                appendLogOnUi("Shizuku 权限此前被拒绝，请到 Shizuku 中重新授权")
+                refreshShizukuStatus()
+                "请到 Shizuku 应用中重新授权"
+            } else {
+                appendLogOnUi("正在请求 Shizuku 授权")
+                Shizuku.requestPermission(REQ_SHIZUKU_PERMISSION)
+                null
+            }
+        } catch (e: Throwable) {
+            appendLogOnUi("Shizuku 授权请求失败：" + e.message)
+            refreshShizukuStatus()
+            "授权请求失败：${e.message}"
+        }
+    }
+
+    private fun installApkSilentlyWithShizuku(apkFile: File): Result<String> {
+        return runCatching {
+            if (!apkFile.exists()) error("APK 文件不存在")
+            if (!Shizuku.pingBinder()) error("Shizuku 未连接")
+            if (Shizuku.checkSelfPermission() != PERMISSION_GRANTED) error("Shizuku 未授权")
+
+            val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java,
+            ).apply { isAccessible = true }
+
+            val command = arrayOf("/system/bin/sh", "-c", "pm install -r ${shellQuote(apkFile.absolutePath)}")
+            appendLogOnUi("开始通过 Shizuku 执行静默安装：${apkFile.absolutePath}")
+            val process = newProcessMethod.invoke(null, command, null, null) as Process
+            val stdout = process.inputStream.use { InputStreamReader(it).readText() }.trim()
+            val stderr = process.errorStream.use { InputStreamReader(it).readText() }.trim()
+            val exitCode = process.waitFor()
+            val summary = listOf(stdout, stderr).filter { it.isNotBlank() }.joinToString(" | ")
+            appendLogOnUi("Shizuku 安装返回码：$exitCode")
+            if (summary.isNotBlank()) appendLogOnUi("Shizuku 安装输出：$summary")
+            if (exitCode != 0) error(summary.ifBlank { "pm install 失败，exit=$exitCode" })
+            summary.ifBlank { "Success" }
+        }
+    }
+
+    private fun shellQuote(text: String): String =
+        "'" + text.replace("'", "'\\''") + "'"
 
     // ── Zip alignment ──
     @Throws(Exception::class)
@@ -1165,6 +1313,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_SO_NAME = "so_name"
         private const val KEY_SAVE_PATH = "save_path"
         private const val KEY_AUTO_SIGN = "auto_sign"
+        private const val KEY_SHIZUKU_SILENT_INSTALL = "shizuku_silent_install"
         private const val DEFAULT_SO_NAME = "ArkStub"
         private const val KEY_USE_CUSTOM_JKS = "use_custom_jks"
         private const val KEY_JKS_PATH = "jks_path"
@@ -1180,6 +1329,7 @@ class MainActivity : ComponentActivity() {
         private const val FAKE_360_ENTERPRISE = 3
         private const val FAKE_360_STUB_CLASS_NAME = "com.nkbe.StubApp"
         private const val REQ_STORAGE_PERMISSION = 10086
+        private const val REQ_SHIZUKU_PERMISSION = 10087
 
         init {
             System.loadLibrary("ArkTool")

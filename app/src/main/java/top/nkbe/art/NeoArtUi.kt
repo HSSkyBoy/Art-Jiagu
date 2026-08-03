@@ -76,6 +76,7 @@ data class ArkSettingsData(
     val stubClassName: String = "com.ark.safe.StubApp",
     val savePath: String = "",
     val autoSign: Boolean = false,
+    val shizukuSilentInstall: Boolean = false,
     val fake360Type: Int = 0,
     val useCustomJks: Boolean = false,
     val jksPath: String = "",
@@ -162,8 +163,11 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
     internal var snackbarText by mutableStateOf<String?>(null)
     internal var snackbarStatus by mutableStateOf(StatusColor.INFO)
     internal var dialogState by mutableStateOf<NeoArtDialogState?>(null)
+    internal var shizukuStatusText by mutableStateOf("未连接")
+    internal var shizukuAuthorized by mutableStateOf(false)
 
     var onSaveSettingsHandler: ((ArkSettingsData) -> String?)? = null
+    var onRequestShizukuAuthHandler: (() -> String?)? = null
 
     fun appendLog(message: String, level: LogLevel = LogLevel.infer(message)) {
         val formatted = LogLevel.format(message, level)
@@ -178,6 +182,10 @@ class NeoArtUiController internal constructor(initialLog: String = "等待文件
     }
     fun showDialog(state: NeoArtDialogState) { dialogState = state }
     fun dismissDialog() { dialogState = null }
+    fun updateShizukuStatus(text: String, granted: Boolean) {
+        shizukuStatusText = text
+        shizukuAuthorized = granted
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -540,6 +548,7 @@ private fun ManagementPage(
                     StrategyLine("壳 SO", s.soName, s.soName.isNotBlank())
                     StrategyLine("壳类名", s.stubClassName, s.stubClassName.isNotBlank())
                     StrategyLine("自动签名", if (s.autoSign) "开启" else "关闭", s.autoSign)
+                    StrategyLine("Shizuku安装", if (s.shizukuSilentInstall) "静默安装" else "关闭", s.shizukuSilentInstall)
                     StrategyLine("偽360", getFake360Label(s.fake360Type), s.fake360Type > 0)
                     StrategyLine("证书", if (s.useCustomJks) "自订 JKS" else "内置 npatch.key", true)
                 }
@@ -651,6 +660,37 @@ private fun SettingsPage(controller: NeoArtUiController, onOpenPreset: () -> Uni
             SectionCard("签名配置") {
                 ToggleRow(title = "自动签名", description = "开启后自动签署 APK 并绑定 C++ 签名校验",
                     checked = s.autoSign, onToggle = { v -> s = s.copy(autoSign = v) })
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Shizuku 状态：${controller.shizukuStatusText}",
+                    color = if (controller.shizukuAuthorized) Color(StatusColor.ACTIVE.color)
+                    else COUITheme.colorScheme.onSurfaceVariantSummary,
+                    fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                ChipBtn("Shizuku 授权") {
+                    val result = controller.onRequestShizukuAuthHandler?.invoke()
+                    if (result.isNullOrEmpty()) {
+                        controller.showSnackbar("已发起 Shizuku 授权请求", StatusColor.INFO)
+                    } else {
+                        controller.showSnackbar(result, StatusColor.WARNING)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                if (s.autoSign) {
+                    ToggleRow(
+                        title = "Shizuku 静默安装",
+                        description = "自动签名完成后，尝试用 Shizuku 静默安装修补后的 APK",
+                        checked = s.shizukuSilentInstall,
+                        onToggle = { v -> s = s.copy(shizukuSilentInstall = v) },
+                    )
+                } else {
+                    Text(
+                        "需先开启自动签名，才能使用修补后静默安装。",
+                        color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 12.sp,
+                    )
+                }
             }
 
             // Section: Fake 360
