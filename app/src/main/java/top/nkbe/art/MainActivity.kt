@@ -723,7 +723,7 @@ class MainActivity : ComponentActivity() {
             ImmutableInstruction22b(Opcode.REM_INT_LIT8, 2, 2, 13),// v2 = 91 % 13 = 0 (always)
             ImmutableInstruction11n(Opcode.CONST_4, 3, 0x0),       // v3 = 0 (dead reg fill)
             // Real code
-            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("ark")),
+            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("top")),
             ImmutableInstruction21c(Opcode.CONST_STRING, 1, ImmutableStringReference(customStubClassName)),
             ImmutableInstruction35c(
                 Opcode.INVOKE_STATIC, 2, 0, 1, 0, 0, 0,
@@ -790,10 +790,17 @@ class MainActivity : ComponentActivity() {
             emptySet(), null, null,
         )
 
+        val decodeStringMethod = ImmutableMethod(
+            stubClass, "decodeString",
+            listOf(ImmutableMethodParameter(stringClass, emptySet(), null)), stringClass,
+            AccessFlags.PUBLIC.value or AccessFlags.STATIC.value or AccessFlags.NATIVE.value,
+            emptySet(), null, null,
+        )
+
         val classDef = ImmutableClassDef(
             stubClass, AccessFlags.PUBLIC.value, applicationClass,
             emptyList(), "StubApp.java", emptySet(), emptyList(),
-            listOf(clinitMethod, initMethod, fakeMethod, attachMethod),
+            listOf(clinitMethod, initMethod, fakeMethod, decodeStringMethod, attachMethod),
         )
 
         dexPool.internClass(classDef)

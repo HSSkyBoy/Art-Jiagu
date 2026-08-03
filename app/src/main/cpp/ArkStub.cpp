@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <android/log.h>
 #include <string>
+#include <vector>
 #include "ArkEnvGuard.h"
 
 #define LOG_TAG "ArkStub"
@@ -62,6 +63,37 @@ static void native_attachBaseContext(JNIEnv *env, jobject thiz, jobject context)
     }
 }
 
+static int hexValue(char value) {
+    if (value >= '0' && value <= '9') return value - '0';
+    if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+    if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+    return -1;
+}
+
+static jstring native_decodeString(JNIEnv *env, jclass clazz, jstring encoded) {
+    if (encoded == nullptr) return nullptr;
+    const char *chars = env->GetStringUTFChars(encoded, nullptr);
+    if (chars == nullptr) return nullptr;
+    const size_t length = strlen(chars);
+    if ((length & 1U) != 0) {
+        env->ReleaseStringUTFChars(encoded, chars);
+        return encoded;
+    }
+
+    std::vector<char> plain(length / 2 + 1, '\0');
+    for (size_t i = 0; i < length / 2; i++) {
+        const int high = hexValue(chars[i * 2]);
+        const int low = hexValue(chars[i * 2 + 1]);
+        if (high < 0 || low < 0) {
+            env->ReleaseStringUTFChars(encoded, chars);
+            return encoded;
+        }
+        plain[i] = static_cast<char>(((high << 4) | low) ^ ((0xa7 + i * 31) & 0xff));
+    }
+    env->ReleaseStringUTFChars(encoded, chars);
+    return env->NewStringUTF(plain.data());
+}
+
 static std::string jstringToString(JNIEnv *env, jstring str) {
     if (str == nullptr) {
         return "";
@@ -103,7 +135,7 @@ static std::string getStubClassNameFromProperty(JNIEnv *env) {
         return "";
     }
 
-    jstring key = env->NewStringUTF("ark");
+    jstring key = env->NewStringUTF("top");
 
     jstring value = (jstring) env->CallStaticObjectMethod(
             clsSystem,
@@ -138,6 +170,14 @@ static JNINativeMethod gAttachMethods[] = {
         }
 };
 
+static JNINativeMethod gStringMethods[] = {
+        {
+                "decodeString",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                (void *) native_decodeString
+        }
+};
+
 static int registerNativeMethods(JNIEnv *env) {
     std::string className = getStubClassNameFromProperty(env);
 
@@ -167,6 +207,16 @@ static int registerNativeMethods(JNIEnv *env) {
             clazz,
             gDtcLoaderMethods,
             sizeof(gDtcLoaderMethods) / sizeof(gDtcLoaderMethods[0])
+    ) == JNI_OK) {
+        hasRegistered = true;
+    } else {
+        env->ExceptionClear();
+    }
+
+    if (env->RegisterNatives(
+            clazz,
+            gStringMethods,
+            sizeof(gStringMethods) / sizeof(gStringMethods[0])
     ) == JNI_OK) {
         hasRegistered = true;
     } else {
