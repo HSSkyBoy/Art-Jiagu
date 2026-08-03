@@ -536,6 +536,7 @@ class MainActivity : ComponentActivity() {
                     protectedApk,
                     preservedRootDexEntries,
                 )
+                stringEncryptionInput?.let { verifyStringEncryptionOutput(protectedApk, it) }
 
                 appendLogOnUi("开始进行 ZIPALIGN")
                 protectedApk = zipAlignApk(protectedApk)
@@ -731,6 +732,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Throws(Exception::class)
+    private fun verifyStringEncryptionOutput(protectedApk: File, input: StringEncryptionInput) {
+        ZipFile(protectedApk).use { zip ->
+            val entry = zip.getEntry("assets/top_strings.bin")
+                ?: throw RuntimeException("字符串加密字串池未写入输出 APK")
+            val matches = FileInputStream(input.poolFile).use { expected ->
+                zip.getInputStream(entry).use { actual -> streamsHaveSameBytes(expected, actual) }
+            }
+            if (!matches) throw RuntimeException("输出 APK 中的字符串加密字串池内容不一致")
+        }
+        appendLogOnUi("已验证字符串加密输出：${input.rewrittenStrings} 条调用已改写")
     }
 
     private fun streamsHaveSameBytes(first: InputStream, second: InputStream): Boolean {
@@ -1530,6 +1544,9 @@ class MainActivity : ComponentActivity() {
         deleteFileQuietly(File(workDir, "AndroidManifest_decode.xml"))
         deleteFileQuietly(File(workDir, "AndroidManifest_modify.xml"))
         deleteFileQuietly(File(workDir, "classes.dex"))
+        deleteFileQuietly(File(workDir, "string_encryption_input.apk"))
+        deleteFileQuietly(File(workDir, "top_strings.bin"))
+        deleteDirQuietly(File(workDir, "string_encryption_dex"))
         deleteDirQuietly(File(workDir, "lib"))
         appendLogOnUi("临时文件清理完成")
     }
