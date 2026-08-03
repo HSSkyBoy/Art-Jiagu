@@ -78,6 +78,7 @@ data class ArkSettingsData(
     val autoSign: Boolean = false,
     val emulatorCompatibility: Boolean = false,
     val rootServiceCompatibility: Boolean = false,
+    val stringEncryption: Boolean = false,
     val shizukuSilentInstall: Boolean = false,
     val fake360Type: Int = 0,
     val useCustomJks: Boolean = false,
@@ -712,6 +713,15 @@ private fun SettingsPage(controller: NeoArtUiController, onOpenPreset: () -> Uni
                         fontSize = 12.sp,
                     )
                 }
+            }
+
+            SectionCard("字符串加密") {
+                ToggleRow(
+                    title = "加密业务字符串",
+                    description = "默认关闭。仅改写安全筛选后的 DEX const-string；反射、JNI、资源与 RootService 兼容 DEX 会保留原样。",
+                    checked = s.stringEncryption,
+                    onToggle = { v -> s = s.copy(stringEncryption = v) },
+                )
             }
 
             SectionCard("模拟器兼容") {

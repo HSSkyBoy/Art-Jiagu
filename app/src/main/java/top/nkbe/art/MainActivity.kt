@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         var autoSign: Boolean,
         var emulatorCompatibility: Boolean,
         var rootServiceCompatibility: Boolean,
+        var stringEncryption: Boolean,
         var shizukuSilentInstall: Boolean,
         var fake360Type: Int,
         var useCustomJks: Boolean,
@@ -104,6 +105,7 @@ class MainActivity : ComponentActivity() {
     )
 
     private data class SoNamePreset(val feature: String, val soName: String)
+    private data class StringEncryptionInput(val apk: File, val poolFile: File, val rewrittenStrings: Int)
 
     // ── Native methods ──
     private external fun buildEncryptedBlock(plainData: ByteArray?): ByteArray?
@@ -268,6 +270,7 @@ class MainActivity : ComponentActivity() {
         val autoSign = sp.getBoolean(KEY_AUTO_SIGN, false)
         val emulatorCompatibility = sp.getBoolean(KEY_EMULATOR_COMPATIBILITY, false)
         val rootServiceCompatibility = sp.getBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, false)
+        val stringEncryption = sp.getBoolean(KEY_STRING_ENCRYPTION, false)
         val shizukuSilentInstall = sp.getBoolean(KEY_SHIZUKU_SILENT_INSTALL, false)
         var fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF)
         if (fake360Type !in FAKE_360_OFF..FAKE_360_ENTERPRISE) fake360Type = FAKE_360_OFF
@@ -285,7 +288,7 @@ class MainActivity : ComponentActivity() {
         if (savePath.isBlank()) savePath = defaultSavePath
 
         return ArkSettings(
-            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, stringEncryption, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
     }
@@ -294,6 +297,7 @@ class MainActivity : ComponentActivity() {
         soName: String, stubClassName: String, savePath: String, autoSign: Boolean,
         emulatorCompatibility: Boolean,
         rootServiceCompatibility: Boolean,
+        stringEncryption: Boolean,
         shizukuSilentInstall: Boolean,
         fake360Type: Int, useCustomJks: Boolean, jksPath: String,
         jksStorePass: String, jksAlias: String, jksKeyPass: String,
@@ -305,6 +309,7 @@ class MainActivity : ComponentActivity() {
             .putBoolean(KEY_AUTO_SIGN, autoSign)
             .putBoolean(KEY_EMULATOR_COMPATIBILITY, emulatorCompatibility)
             .putBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, rootServiceCompatibility)
+            .putBoolean(KEY_STRING_ENCRYPTION, stringEncryption)
             .putBoolean(KEY_SHIZUKU_SILENT_INSTALL, shizukuSilentInstall)
             .putInt(KEY_FAKE_360_TYPE, fake360Type)
             .putBoolean(KEY_USE_CUSTOM_JKS, useCustomJks)
@@ -324,6 +329,7 @@ class MainActivity : ComponentActivity() {
             autoSign = s.autoSign,
             emulatorCompatibility = s.emulatorCompatibility,
             rootServiceCompatibility = s.rootServiceCompatibility,
+            stringEncryption = s.stringEncryption,
             shizukuSilentInstall = s.shizukuSilentInstall,
             fake360Type = s.fake360Type,
             useCustomJks = s.useCustomJks,
@@ -341,6 +347,7 @@ class MainActivity : ComponentActivity() {
         val autoSign = data.autoSign
         val emulatorCompatibility = data.emulatorCompatibility
         val rootServiceCompatibility = data.rootServiceCompatibility
+        val stringEncryption = data.stringEncryption
         val shizukuSilentInstall = data.shizukuSilentInstall
         val fake360Type = data.fake360Type
         if (fake360Type != FAKE_360_OFF) stubClassName = FAKE_360_STUB_CLASS_NAME
@@ -358,7 +365,7 @@ class MainActivity : ComponentActivity() {
         if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) return "JKS 证书配置无效或未填完整"
 
         saveArkSettings(
-            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, stringEncryption, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
         Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
@@ -494,6 +501,9 @@ class MainActivity : ComponentActivity() {
                     copiedApk,
                     settings.rootServiceCompatibility,
                 )
+                val stringEncryptionInput = if (settings.stringEncryption) {
+                    prepareStringEncryptionInput(copiedApk, workDir, preservedRootDexEntries)
+                } else null
 
                 appendLogOnUi("开始生成壳 DEX")
                 val useApplicationEntry = settings.emulatorCompatibility || readTargetMinSdk(copiedApk) < 28
@@ -505,7 +515,7 @@ class MainActivity : ComponentActivity() {
                 val signHash64 = getSignHash64ForShell()
                 appendLogOnUi("开始加密原始 DEX")
                 buildEncryptedShellDex(
-                    copiedApk, shellDex, appName, signHash64,
+                    stringEncryptionInput?.apk ?: copiedApk, shellDex, appName, signHash64,
                     preservedRootDexEntries.toTypedArray(),
                 )
                 appendLogOnUi("加密完成：" + shellDex.absolutePath + "（" + shellDex.length() + " 字节）")
@@ -518,7 +528,7 @@ class MainActivity : ComponentActivity() {
                 appendLogOnUi("Manifest 改写完成：${newManifest.absolutePath}（${newManifest.length()} 字节）")
                 appendLogOnUi("开始重建加固 APK")
                 var protectedApk = rebuildProtectedApk(
-                    copiedApk, workDir, originalApkName, preservedRootDexEntries,
+                    copiedApk, workDir, originalApkName, preservedRootDexEntries, stringEncryptionInput?.poolFile,
                 )
                 appendLogOnUi("重建 APK 完成：${protectedApk.absolutePath}（${protectedApk.length()} 字节）")
                 verifyRootServiceCompatibilityOutput(
@@ -526,6 +536,7 @@ class MainActivity : ComponentActivity() {
                     protectedApk,
                     preservedRootDexEntries,
                 )
+                stringEncryptionInput?.let { verifyStringEncryptionOutput(protectedApk, it) }
 
                 appendLogOnUi("开始进行 ZIPALIGN")
                 protectedApk = zipAlignApk(protectedApk)
@@ -649,6 +660,47 @@ class MainActivity : ComponentActivity() {
         )
         return result.rootServiceDexEntries
     }
+
+    @Throws(Exception::class)
+    private fun prepareStringEncryptionInput(
+        sourceApk: File,
+        workDir: File,
+        preservedDexEntries: List<String>,
+    ): StringEncryptionInput? {
+        appendLogOnUi("已开启字符串加密，开始生成 DEX 重写输入")
+        val inputApk = File(workDir, "string_encryption_input.apk")
+        val dexDir = File(workDir, "string_encryption_dex")
+        deleteFileQuietly(inputApk); deleteDirQuietly(dexDir); dexDir.mkdirs()
+        val pool = StringEncryptionRewriter.StringPoolBuilder()
+        var rewritten = 0
+        ZipFile(sourceApk).use { zip ->
+            ZipOutputStream(FileOutputStream(inputApk)).use { output ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val name = entry.name
+                    if (name !in preservedDexEntries && name.matches(Regex("classes([2-9][0-9]*)?\\.dex"))) {
+                        val sourceDex = File(dexDir, "$name.in")
+                        val rewrittenDex = File(dexDir, name)
+                        zip.getInputStream(entry).use { input -> FileOutputStream(sourceDex).use { input.copyTo(it) } }
+                        val result = StringEncryptionRewriter.rewrite(sourceDex, rewrittenDex, validStubClassName, pool)
+                        rewritten += result.rewrittenStrings
+                        FileInputStream(rewrittenDex).use { addZipEntryStream(output, name, it, null) }
+                    } else if (entry.isDirectory) addDirectoryZipEntry(output, name, entry)
+                    else zip.getInputStream(entry).use { addZipEntryStream(output, name, it, entry) }
+                }
+            }
+        }
+        if (rewritten == 0 || pool.isEmpty) {
+            deleteFileQuietly(inputApk)
+            appendLogOnUi("未找到可安全加密的字符串，继续使用原始 DEX")
+            return null
+        }
+        val poolFile = File(workDir, "top_strings.bin")
+        StringEncryptionRewriter.writeEncryptedStringPool(poolFile, pool.buildEncryptedStringPool())
+        appendLogOnUi("字符串重写完成：$rewritten 条，字串池：${poolFile.length()} 字节")
+        return StringEncryptionInput(inputApk, poolFile, rewritten)
+    }
     @Throws(Exception::class)
     private fun verifyRootServiceCompatibilityOutput(
         sourceApk: File,
@@ -680,6 +732,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Throws(Exception::class)
+    private fun verifyStringEncryptionOutput(protectedApk: File, input: StringEncryptionInput) {
+        ZipFile(protectedApk).use { zip ->
+            val entry = zip.getEntry("assets/top_strings.bin")
+                ?: throw RuntimeException("字符串加密字串池未写入输出 APK")
+            val matches = FileInputStream(input.poolFile).use { expected ->
+                zip.getInputStream(entry).use { actual -> streamsHaveSameBytes(expected, actual) }
+            }
+            if (!matches) throw RuntimeException("输出 APK 中的字符串加密字串池内容不一致")
+        }
+        appendLogOnUi("已验证字符串加密输出：${input.rewrittenStrings} 条调用已改写")
     }
 
     private fun streamsHaveSameBytes(first: InputStream, second: InputStream): Boolean {
@@ -723,7 +788,7 @@ class MainActivity : ComponentActivity() {
             ImmutableInstruction22b(Opcode.REM_INT_LIT8, 2, 2, 13),// v2 = 91 % 13 = 0 (always)
             ImmutableInstruction11n(Opcode.CONST_4, 3, 0x0),       // v3 = 0 (dead reg fill)
             // Real code
-            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("ark")),
+            ImmutableInstruction21c(Opcode.CONST_STRING, 0, ImmutableStringReference("top")),
             ImmutableInstruction21c(Opcode.CONST_STRING, 1, ImmutableStringReference(customStubClassName)),
             ImmutableInstruction35c(
                 Opcode.INVOKE_STATIC, 2, 0, 1, 0, 0, 0,
@@ -790,10 +855,17 @@ class MainActivity : ComponentActivity() {
             emptySet(), null, null,
         )
 
+        val decodeStringMethod = ImmutableMethod(
+            stubClass, "decodeString",
+            listOf(ImmutableMethodParameter("I", emptySet(), null)), stringClass,
+            AccessFlags.PUBLIC.value or AccessFlags.STATIC.value or AccessFlags.NATIVE.value,
+            emptySet(), null, null,
+        )
+
         val classDef = ImmutableClassDef(
             stubClass, AccessFlags.PUBLIC.value, applicationClass,
             emptyList(), "StubApp.java", emptySet(), emptyList(),
-            listOf(clinitMethod, initMethod, fakeMethod, attachMethod),
+            listOf(clinitMethod, initMethod, fakeMethod, decodeStringMethod, attachMethod),
         )
 
         dexPool.internClass(classDef)
@@ -1060,6 +1132,7 @@ class MainActivity : ComponentActivity() {
         workDir: File,
         originalApkName: String?,
         preservedRootDexEntries: List<String>,
+        stringPoolFile: File?,
     ): File {
         appendLogOnUi("开始重打包 APK")
 
@@ -1086,6 +1159,7 @@ class MainActivity : ComponentActivity() {
 
         skipNames.add("AndroidManifest.xml")
         if (fake360AssetName != null) skipNames.add(fake360AssetName)
+        if (stringPoolFile != null) skipNames.add("assets/top_strings.bin")
         if (libDir.exists() && libDir.isDirectory) collectLibSkipNames(libDir, libDir, skipNames)
         appendLogOnUi("重打包时跳过条目数：" + skipNames.size)
 
@@ -1132,6 +1206,11 @@ class MainActivity : ComponentActivity() {
 
                 if (libDir.exists() && libDir.isDirectory) {
                     addLibDirToZipStream(zos, libDir, libDir)
+                }
+
+                if (stringPoolFile != null) {
+                    FileInputStream(stringPoolFile).use { addZipEntryStream(zos, "assets/top_strings.bin", it, null) }
+                    appendLogOnUi("已写入加密字符串池")
                 }
 
                 if (fake360AssetName != null) {
@@ -1465,6 +1544,9 @@ class MainActivity : ComponentActivity() {
         deleteFileQuietly(File(workDir, "AndroidManifest_decode.xml"))
         deleteFileQuietly(File(workDir, "AndroidManifest_modify.xml"))
         deleteFileQuietly(File(workDir, "classes.dex"))
+        deleteFileQuietly(File(workDir, "string_encryption_input.apk"))
+        deleteFileQuietly(File(workDir, "top_strings.bin"))
+        deleteDirQuietly(File(workDir, "string_encryption_dex"))
         deleteDirQuietly(File(workDir, "lib"))
         appendLogOnUi("临时文件清理完成")
     }
@@ -1507,6 +1589,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_AUTO_SIGN = "auto_sign"
         private const val KEY_EMULATOR_COMPATIBILITY = "emulator_compatibility"
         private const val KEY_ROOT_SERVICE_COMPATIBILITY = "root_service_compatibility"
+        private const val KEY_STRING_ENCRYPTION = "string_encryption"
         private const val KEY_SHIZUKU_SILENT_INSTALL = "shizuku_silent_install"
         private const val DEFAULT_SO_NAME = "ArkStub"
         private const val KEY_USE_CUSTOM_JKS = "use_custom_jks"
