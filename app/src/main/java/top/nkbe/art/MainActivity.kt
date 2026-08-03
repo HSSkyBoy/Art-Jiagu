@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         var autoSign: Boolean,
         var emulatorCompatibility: Boolean,
         var rootServiceCompatibility: Boolean,
+        var stringEncryption: Boolean,
         var shizukuSilentInstall: Boolean,
         var fake360Type: Int,
         var useCustomJks: Boolean,
@@ -268,6 +269,7 @@ class MainActivity : ComponentActivity() {
         val autoSign = sp.getBoolean(KEY_AUTO_SIGN, false)
         val emulatorCompatibility = sp.getBoolean(KEY_EMULATOR_COMPATIBILITY, false)
         val rootServiceCompatibility = sp.getBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, false)
+        val stringEncryption = sp.getBoolean(KEY_STRING_ENCRYPTION, false)
         val shizukuSilentInstall = sp.getBoolean(KEY_SHIZUKU_SILENT_INSTALL, false)
         var fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF)
         if (fake360Type !in FAKE_360_OFF..FAKE_360_ENTERPRISE) fake360Type = FAKE_360_OFF
@@ -285,7 +287,7 @@ class MainActivity : ComponentActivity() {
         if (savePath.isBlank()) savePath = defaultSavePath
 
         return ArkSettings(
-            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, stringEncryption, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
     }
@@ -294,6 +296,7 @@ class MainActivity : ComponentActivity() {
         soName: String, stubClassName: String, savePath: String, autoSign: Boolean,
         emulatorCompatibility: Boolean,
         rootServiceCompatibility: Boolean,
+        stringEncryption: Boolean,
         shizukuSilentInstall: Boolean,
         fake360Type: Int, useCustomJks: Boolean, jksPath: String,
         jksStorePass: String, jksAlias: String, jksKeyPass: String,
@@ -305,6 +308,7 @@ class MainActivity : ComponentActivity() {
             .putBoolean(KEY_AUTO_SIGN, autoSign)
             .putBoolean(KEY_EMULATOR_COMPATIBILITY, emulatorCompatibility)
             .putBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, rootServiceCompatibility)
+            .putBoolean(KEY_STRING_ENCRYPTION, stringEncryption)
             .putBoolean(KEY_SHIZUKU_SILENT_INSTALL, shizukuSilentInstall)
             .putInt(KEY_FAKE_360_TYPE, fake360Type)
             .putBoolean(KEY_USE_CUSTOM_JKS, useCustomJks)
@@ -324,6 +328,7 @@ class MainActivity : ComponentActivity() {
             autoSign = s.autoSign,
             emulatorCompatibility = s.emulatorCompatibility,
             rootServiceCompatibility = s.rootServiceCompatibility,
+            stringEncryption = s.stringEncryption,
             shizukuSilentInstall = s.shizukuSilentInstall,
             fake360Type = s.fake360Type,
             useCustomJks = s.useCustomJks,
@@ -341,6 +346,7 @@ class MainActivity : ComponentActivity() {
         val autoSign = data.autoSign
         val emulatorCompatibility = data.emulatorCompatibility
         val rootServiceCompatibility = data.rootServiceCompatibility
+        val stringEncryption = data.stringEncryption
         val shizukuSilentInstall = data.shizukuSilentInstall
         val fake360Type = data.fake360Type
         if (fake360Type != FAKE_360_OFF) stubClassName = FAKE_360_STUB_CLASS_NAME
@@ -358,7 +364,7 @@ class MainActivity : ComponentActivity() {
         if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) return "JKS 证书配置无效或未填完整"
 
         saveArkSettings(
-            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, stringEncryption, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
         Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
@@ -1514,6 +1520,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_AUTO_SIGN = "auto_sign"
         private const val KEY_EMULATOR_COMPATIBILITY = "emulator_compatibility"
         private const val KEY_ROOT_SERVICE_COMPATIBILITY = "root_service_compatibility"
+        private const val KEY_STRING_ENCRYPTION = "string_encryption"
         private const val KEY_SHIZUKU_SILENT_INSTALL = "shizuku_silent_install"
         private const val DEFAULT_SO_NAME = "ArkStub"
         private const val KEY_USE_CUSTOM_JKS = "use_custom_jks"
