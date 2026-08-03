@@ -11,6 +11,7 @@ import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
@@ -83,7 +84,7 @@ object StringEncryptionRewriter {
             val reference = (instruction as? ReferenceInstruction)?.reference as? StringReference ?: continue
             val register = (instruction as? OneRegisterInstruction)?.registerA ?: continue
             val value = reference.string
-            if (!isCandidate(value)) continue
+            if (!isCandidate(value) || isSensitiveUsage(mutable.instructions, index)) continue
 
             val stringIndex = onRewrite(value)
             mutable.replaceInstruction(index, BuilderInstruction31i(Opcode.CONST, register, stringIndex))
@@ -103,12 +104,32 @@ object StringEncryptionRewriter {
     }
 
     private fun isCandidate(value: String): Boolean {
-        if (value.length < 4 || value.length > 512 || value.any { it == '\u0000' }) return false
+        if (value.length <= 2 || value.length > 512 || value.any { it == '\u0000' }) return false
         if (value.startsWith("L") && value.endsWith(";")) return false // type descriptor
         if (value.startsWith("(") || value.contains("->") || value.startsWith("[")) return false // signature/member
         if (value.matches(Regex("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*){1,}"))) return false // class name
         if (value.startsWith("lib") && value.endsWith(".so")) return false // System.loadLibrary target
         return true
+    }
+
+    private fun isSensitiveUsage(
+        instructions: List<com.android.tools.smali.dexlib2.builder.BuilderInstruction>,
+        stringIndex: Int,
+    ): Boolean {
+        val start = (stringIndex - 2).coerceAtLeast(0)
+        val end = (stringIndex + 7).coerceAtMost(instructions.lastIndex)
+        for (index in start..end) {
+            val reference = (instructions[index] as? ReferenceInstruction)?.reference as? MethodReference ?: continue
+            val owner = reference.definingClass
+            val name = reference.name
+            if ((owner == "Ljava/lang/Class;" && name in setOf("forName", "getMethod", "getDeclaredMethod", "getField", "getDeclaredField")) ||
+                (owner == "Ljava/lang/reflect/Method;" && name == "invoke") ||
+                (owner == "Ljava/lang/System;" && name == "loadLibrary") ||
+                (owner == "Landroid/content/res/Resources;" && name == "getIdentifier")) {
+                return true
+            }
+        }
+        return false
     }
 
     fun writeEncryptedStringPool(output: File, pool: ByteArray) {
