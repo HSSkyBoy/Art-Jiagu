@@ -30,6 +30,7 @@ import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstructio
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
 import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import com.ark.jar.xml2axml.test.Xml2AxmlTool
@@ -91,6 +92,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName: String,
         var savePath: String,
         var autoSign: Boolean,
+        var emulatorCompatibility: Boolean,
         var rootServiceCompatibility: Boolean,
         var shizukuSilentInstall: Boolean,
         var fake360Type: Int,
@@ -264,6 +266,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = sp.getString(KEY_STUB_CLASS_NAME, DEFAULT_STUB_CLASS_NAME) ?: DEFAULT_STUB_CLASS_NAME
         var savePath = sp.getString(KEY_SAVE_PATH, defaultSavePath) ?: defaultSavePath
         val autoSign = sp.getBoolean(KEY_AUTO_SIGN, false)
+        val emulatorCompatibility = sp.getBoolean(KEY_EMULATOR_COMPATIBILITY, false)
         val rootServiceCompatibility = sp.getBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, false)
         val shizukuSilentInstall = sp.getBoolean(KEY_SHIZUKU_SILENT_INSTALL, false)
         var fake360Type = sp.getInt(KEY_FAKE_360_TYPE, FAKE_360_OFF)
@@ -282,13 +285,14 @@ class MainActivity : ComponentActivity() {
         if (savePath.isBlank()) savePath = defaultSavePath
 
         return ArkSettings(
-            soName, stubClassName, savePath, autoSign, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
     }
 
     private fun saveArkSettings(
         soName: String, stubClassName: String, savePath: String, autoSign: Boolean,
+        emulatorCompatibility: Boolean,
         rootServiceCompatibility: Boolean,
         shizukuSilentInstall: Boolean,
         fake360Type: Int, useCustomJks: Boolean, jksPath: String,
@@ -299,6 +303,7 @@ class MainActivity : ComponentActivity() {
             .putString(KEY_STUB_CLASS_NAME, stubClassName)
             .putString(KEY_SAVE_PATH, savePath)
             .putBoolean(KEY_AUTO_SIGN, autoSign)
+            .putBoolean(KEY_EMULATOR_COMPATIBILITY, emulatorCompatibility)
             .putBoolean(KEY_ROOT_SERVICE_COMPATIBILITY, rootServiceCompatibility)
             .putBoolean(KEY_SHIZUKU_SILENT_INSTALL, shizukuSilentInstall)
             .putInt(KEY_FAKE_360_TYPE, fake360Type)
@@ -317,6 +322,7 @@ class MainActivity : ComponentActivity() {
             stubClassName = s.stubClassName,
             savePath = s.savePath,
             autoSign = s.autoSign,
+            emulatorCompatibility = s.emulatorCompatibility,
             rootServiceCompatibility = s.rootServiceCompatibility,
             shizukuSilentInstall = s.shizukuSilentInstall,
             fake360Type = s.fake360Type,
@@ -333,6 +339,7 @@ class MainActivity : ComponentActivity() {
         var stubClassName = data.stubClassName.trim()
         val savePath = data.savePath.trim()
         val autoSign = data.autoSign
+        val emulatorCompatibility = data.emulatorCompatibility
         val rootServiceCompatibility = data.rootServiceCompatibility
         val shizukuSilentInstall = data.shizukuSilentInstall
         val fake360Type = data.fake360Type
@@ -351,7 +358,7 @@ class MainActivity : ComponentActivity() {
         if (useCustomJks && !isValidJksSettings(jksPath, jksStorePass, jksAlias, jksKeyPass)) return "JKS 证书配置无效或未填完整"
 
         saveArkSettings(
-            soName, stubClassName, savePath, autoSign, rootServiceCompatibility, shizukuSilentInstall,
+            soName, stubClassName, savePath, autoSign, emulatorCompatibility, rootServiceCompatibility, shizukuSilentInstall,
             fake360Type, useCustomJks, jksPath, jksStorePass, jksAlias, jksKeyPass,
         )
         Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
@@ -489,7 +496,11 @@ class MainActivity : ComponentActivity() {
                 )
 
                 appendLogOnUi("开始生成壳 DEX")
-                val shellDex = generateShellDex(workDir)
+                val useApplicationEntry = settings.emulatorCompatibility || readTargetMinSdk(copiedApk) < 28
+                if (!settings.emulatorCompatibility && useApplicationEntry) {
+                    appendLogOnUi("目标 APK 最低版本低于 Android 9，自动启用 android:name 兼容入口")
+                }
+                val shellDex = generateShellDex(workDir, useApplicationEntry)
                 appendLogOnUi("壳 DEX 生成完成：${shellDex.absolutePath}（${shellDex.length()} 字节）")
                 val signHash64 = getSignHash64ForShell()
                 appendLogOnUi("开始加密原始 DEX")
@@ -503,7 +514,7 @@ class MainActivity : ComponentActivity() {
                 extractStubSoByTargetAbi(copiedApk, workDir)
                 appendLogOnUi("壳 SO 提取完成")
                 appendLogOnUi("开始改写 AndroidManifest.xml")
-                val newManifest = modifyAndroidManifest(copiedApk, workDir)
+                val newManifest = modifyAndroidManifest(copiedApk, workDir, appName, useApplicationEntry)
                 appendLogOnUi("Manifest 改写完成：${newManifest.absolutePath}（${newManifest.length()} 字节）")
                 appendLogOnUi("开始重建加固 APK")
                 var protectedApk = rebuildProtectedApk(
@@ -635,14 +646,18 @@ class MainActivity : ComponentActivity() {
     }
 
     @Throws(Exception::class)
-    private fun generateShellDex(outputDir: File): File {
+    private fun generateShellDex(outputDir: File, useApplicationEntry: Boolean): File {
         if (!outputDir.exists() && !outputDir.mkdirs())
             throw RuntimeException("创建输出目录失败：" + outputDir.absolutePath)
 
         val outputDex = File(outputDir, "classes.dex")
         val customStubClassName = validStubClassName
         val stubClass = "L" + customStubClassName.replace('.', '/') + ";"
+        val factoryClass = "L" + "${customStubClassName}Factory".replace('.', '/') + ";"
         val applicationClass = "Landroid/app/Application;"
+        val appComponentFactoryClass = "Landroid/app/AppComponentFactory;"
+        val classLoaderClass = "Ljava/lang/ClassLoader;"
+        val stringClass = "Ljava/lang/String;"
         val contextClass = "Landroid/content/Context;"
 
         val dexPool = DexPool(Opcodes.getDefault())
@@ -731,6 +746,56 @@ class MainActivity : ComponentActivity() {
         )
 
         dexPool.internClass(classDef)
+        if (!useApplicationEntry) {
+            val factoryInitMethod = ImmutableMethod(
+                factoryClass, "<init>", emptyList(), "V",
+                AccessFlags.PUBLIC.value or AccessFlags.CONSTRUCTOR.value,
+                emptySet(), null,
+                ImmutableMethodImplementation(
+                    1,
+                    listOf(
+                        ImmutableInstruction35c(
+                            Opcode.INVOKE_DIRECT, 1, 0, 0, 0, 0, 0,
+                            ImmutableMethodReference(appComponentFactoryClass, "<init>", emptyList(), "V"),
+                        ),
+                        ImmutableInstruction10x(Opcode.RETURN_VOID),
+                    ), emptyList(), emptyList(),
+                ),
+            )
+            val factoryInstantiateApplication = ImmutableMethod(
+                factoryClass,
+                "instantiateApplication",
+                listOf(
+                    ImmutableMethodParameter(classLoaderClass, emptySet(), null),
+                    ImmutableMethodParameter(stringClass, emptySet(), null),
+                ),
+                applicationClass,
+                AccessFlags.PUBLIC.value,
+                emptySet(), null,
+                ImmutableMethodImplementation(
+                    4,
+                    listOf(
+                        ImmutableInstruction21c(
+                            Opcode.NEW_INSTANCE, 0, ImmutableTypeReference(stubClass),
+                        ),
+                        ImmutableInstruction35c(
+                            Opcode.INVOKE_DIRECT, 1, 0, 0, 0, 0, 0,
+                            ImmutableMethodReference(stubClass, "<init>", emptyList(), "V"),
+                        ),
+                        ImmutableInstruction11x(Opcode.RETURN_OBJECT, 0),
+                    ), emptyList(), emptyList(),
+                ),
+            )
+            dexPool.internClass(
+                ImmutableClassDef(
+                    factoryClass,
+                    AccessFlags.PUBLIC.value,
+                    appComponentFactoryClass,
+                    emptyList(), "ShellFactory.java", emptySet(), emptyList(),
+                    listOf(factoryInitMethod, factoryInstantiateApplication),
+                ),
+            )
+        }
         dexPool.writeTo(FileDataStore(outputDex))
         return outputDex
     }
@@ -826,7 +891,12 @@ class MainActivity : ComponentActivity() {
 
     // ── Manifest modification ──
     @Throws(Exception::class)
-    private fun modifyAndroidManifest(apkFile: File, workDir: File): File {
+    private fun modifyAndroidManifest(
+        apkFile: File,
+        workDir: File,
+        originalApplicationName: String,
+        useApplicationEntry: Boolean,
+    ): File {
         appendLogOnUi("开始处理 AndroidManifest.xml")
         val manifestAxml = File(workDir, "AndroidManifest_origin.xml")
         val manifestXml = File(workDir, "AndroidManifest_decode.xml")
@@ -860,8 +930,14 @@ class MainActivity : ComponentActivity() {
             }
             if (application == null) throw RuntimeException("Manifest 中未找到 application 标签")
 
-            rewriteApplicationAttributes(application)
-            appendLogOnUi("Manifest application 已改写为壳入口：$validStubClassName")
+            rewriteApplicationAttributes(application, originalApplicationName, useApplicationEntry)
+            appendLogOnUi(
+                if (useApplicationEntry) {
+                    "Manifest 已使用 android:name 兼容入口：$validStubClassName"
+                } else {
+                    "Manifest 已使用 appComponentFactory 入口：${validStubClassName}Factory"
+                },
+            )
 
             val transformer = TransformerFactory.newInstance().newTransformer().apply {
                 setOutputProperty(OutputKeys.ENCODING, "utf-8")
@@ -879,7 +955,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun rewriteApplicationAttributes(application: Element) {
+    private fun rewriteApplicationAttributes(
+        application: Element,
+        originalApplicationName: String,
+        useApplicationEntry: Boolean,
+    ) {
         val androidNs = "http://schemas.android.com/apk/res/android"
         val oldAttrs = ArrayList<Attr>()
 
@@ -889,7 +969,8 @@ class MainActivity : ComponentActivity() {
             if (node is Attr) {
                 val name = node.name
                 if (name == "android:name" || name == "android:extractNativeLibs" ||
-                    name == "name" || name == "extractNativeLibs") continue
+                    name == "android:appComponentFactory" || name == "name" ||
+                    name == "extractNativeLibs" || name == "appComponentFactory") continue
                 oldAttrs.add(node)
             }
         }
@@ -897,10 +978,6 @@ class MainActivity : ComponentActivity() {
         while (application.attributes.length > 0) {
             application.removeAttributeNode(application.attributes.item(0) as Attr)
         }
-
-        var hasLabelWritten = false
-        var hasIconWritten = false
-        var inserted = false
 
         for (attr in oldAttrs) {
             val attrName = attr.name
@@ -910,19 +987,19 @@ class MainActivity : ComponentActivity() {
             } else {
                 application.setAttribute(attrName, attrValue)
             }
-            if (attrName == "android:label") hasLabelWritten = true
-            if (attrName == "android:icon") hasIconWritten = true
-            if (!inserted && hasLabelWritten && hasIconWritten) {
-                application.setAttributeNS(androidNs, "android:name", validStubClassName)
-                application.setAttributeNS(androidNs, "android:extractNativeLibs", "true")
-                inserted = true
-            }
         }
 
-        if (!inserted) {
+        if (useApplicationEntry) {
             application.setAttributeNS(androidNs, "android:name", validStubClassName)
-            application.setAttributeNS(androidNs, "android:extractNativeLibs", "true")
+        } else {
+            application.setAttributeNS(androidNs, "android:name", originalApplicationName)
+            application.setAttributeNS(
+                androidNs,
+                "android:appComponentFactory",
+                "${validStubClassName}Factory",
+            )
         }
+        application.setAttributeNS(androidNs, "android:extractNativeLibs", "true")
     }
 
     // ── Repackaging ──
@@ -1281,6 +1358,14 @@ class MainActivity : ComponentActivity() {
         } ?: throw RuntimeException("无法打开输入文件")
     }
 
+    private fun readTargetMinSdk(apkFile: File): Int {
+        val info = packageManager.getPackageArchiveInfo(
+            apkFile.absolutePath,
+            PackageManager.GET_META_DATA,
+        )
+        return info?.applicationInfo?.minSdkVersion?.takeIf { it > 0 } ?: 1
+    }
+
     private fun readApplicationName(apkFile: File): String {
         val info = packageManager.getPackageArchiveInfo(
             apkFile.absolutePath,
@@ -1369,6 +1454,7 @@ class MainActivity : ComponentActivity() {
         private const val KEY_SO_NAME = "so_name"
         private const val KEY_SAVE_PATH = "save_path"
         private const val KEY_AUTO_SIGN = "auto_sign"
+        private const val KEY_EMULATOR_COMPATIBILITY = "emulator_compatibility"
         private const val KEY_ROOT_SERVICE_COMPATIBILITY = "root_service_compatibility"
         private const val KEY_SHIZUKU_SILENT_INSTALL = "shizuku_silent_install"
         private const val DEFAULT_SO_NAME = "ArkStub"

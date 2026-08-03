@@ -76,6 +76,7 @@ data class ArkSettingsData(
     val stubClassName: String = "com.ark.safe.StubApp",
     val savePath: String = "",
     val autoSign: Boolean = false,
+    val emulatorCompatibility: Boolean = false,
     val rootServiceCompatibility: Boolean = false,
     val shizukuSilentInstall: Boolean = false,
     val fake360Type: Int = 0,
@@ -549,6 +550,7 @@ private fun ManagementPage(
                     StrategyLine("壳 SO", s.soName, s.soName.isNotBlank())
                     StrategyLine("壳类名", s.stubClassName, s.stubClassName.isNotBlank())
                     StrategyLine("自动签名", if (s.autoSign) "开启" else "关闭", s.autoSign)
+                    StrategyLine("模拟器", if (s.emulatorCompatibility) "兼容模式" else "Factory 入口", s.emulatorCompatibility)
                     StrategyLine("Root 应用", if (s.rootServiceCompatibility) "兼容模式" else "全量加密", s.rootServiceCompatibility)
                     StrategyLine("Shizuku安装", if (s.shizukuSilentInstall) "静默安装" else "关闭", s.shizukuSilentInstall)
                     StrategyLine("偽360", getFake360Label(s.fake360Type), s.fake360Type > 0)
@@ -706,6 +708,23 @@ private fun SettingsPage(controller: NeoArtUiController, onOpenPreset: () -> Uni
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "兼容性优先：被保留的 DEX 可被静态读取；未发现 libsu RootService 时不会降低保护强度。",
+                        color = COUITheme.colorScheme.onSurfaceVariantSummary,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+
+            SectionCard("模拟器兼容") {
+                ToggleRow(
+                    title = "让受保护应用在模拟器上运行",
+                    description = "默认关闭。开启后改用 android:name 壳入口，兼容会忽略 appComponentFactory 的模拟器或 ROM；内存解密与签名绑定不变。",
+                    checked = s.emulatorCompatibility,
+                    onToggle = { v -> s = s.copy(emulatorCompatibility = v) },
+                )
+                if (!s.emulatorCompatibility) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "关闭时使用 appComponentFactory 入口；Android 9 以下的目标 APK 会自动切换兼容入口。",
                         color = COUITheme.colorScheme.onSurfaceVariantSummary,
                         fontSize = 12.sp,
                     )
